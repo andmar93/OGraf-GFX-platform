@@ -13,14 +13,6 @@ export const RUNTIME_SOURCE = String.raw`/**
  */
 const PROJECT = /*__OGP_PROJECT__*/null;
 
-const EASE = {
-  'ease-out': 'cubic-bezier(0.16, 1, 0.3, 1)',
-  'ease-in': 'cubic-bezier(0.7, 0, 0.84, 0)',
-  'ease-in-out': 'cubic-bezier(0.65, 0, 0.35, 1)',
-  linear: 'linear',
-  smooth: 'cubic-bezier(0.16, 1, 0.3, 1)',
-  back: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-};
 const TOKEN = /\{([A-Za-z_][A-Za-z0-9_]*)(?::([a-z0-9]+))?\}/g;
 
 function resolveAsset(src) {
@@ -84,28 +76,101 @@ function walk(layers, fn) {
   }
 }
 
-/** Keyframes [from, to] of an in/out preset. */
-function presetFrames(a, which) {
-  var d = a.distance || 60;
-  var shown = { opacity: 1, transform: 'translate(0px, 0px) scale(1)', clipPath: 'inset(0% 0% 0% 0%)' };
-  var hidden;
-  var inv = which === 'in' ? -1 : 1;
-  switch (a.type) {
-    case 'fade': hidden = { opacity: 0, transform: shown.transform, clipPath: shown.clipPath }; break;
-    case 'scale': hidden = { opacity: 0, transform: 'translate(0px, 0px) scale(0.6)', clipPath: shown.clipPath }; break;
-    case 'pop': hidden = { opacity: 0, transform: 'translate(0px, 0px) scale(0.2)', clipPath: shown.clipPath }; break;
-    case 'slide-right': hidden = { opacity: 0, transform: 'translate(' + (inv * d) + 'px, 0px) scale(1)', clipPath: shown.clipPath }; break;
-    case 'slide-left': hidden = { opacity: 0, transform: 'translate(' + (-inv * d) + 'px, 0px) scale(1)', clipPath: shown.clipPath }; break;
-    case 'slide-down': hidden = { opacity: 0, transform: 'translate(0px, ' + (inv * d) + 'px) scale(1)', clipPath: shown.clipPath }; break;
-    case 'slide-up': hidden = { opacity: 0, transform: 'translate(0px, ' + (-inv * d) + 'px) scale(1)', clipPath: shown.clipPath }; break;
-    case 'wipe-right': hidden = { opacity: 1, transform: shown.transform, clipPath: which === 'in' ? 'inset(0% 100% 0% 0%)' : 'inset(0% 0% 0% 100%)' }; break;
-    case 'wipe-left': hidden = { opacity: 1, transform: shown.transform, clipPath: which === 'in' ? 'inset(0% 0% 0% 100%)' : 'inset(0% 100% 0% 0%)' }; break;
-    case 'wipe-down': hidden = { opacity: 1, transform: shown.transform, clipPath: which === 'in' ? 'inset(0% 0% 100% 0%)' : 'inset(100% 0% 0% 0%)' }; break;
-    case 'wipe-up': hidden = { opacity: 1, transform: shown.transform, clipPath: which === 'in' ? 'inset(100% 0% 0% 0%)' : 'inset(0% 0% 100% 0%)' }; break;
-    default: return null;
+/* ---------------- timeline maths (same as editor-core/timeline.ts) ---------------- */
+var CURVES = {
+  'ease-in': [0.7, 0, 0.84, 0],
+  'ease-out': [0.16, 1, 0.3, 1],
+  'ease-in-out': [0.65, 0, 0.35, 1],
+  smooth: [0.16, 1, 0.3, 1],
+  back: [0.34, 1.56, 0.64, 1]
+};
+var PROPS = ['x', 'y', 'scale', 'opacity', 'rotation', 'maskL', 'maskR', 'maskT', 'maskB'];
+
+function cubicBezier(x1, y1, x2, y2, x) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  var cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  var cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  function sx(t) { return ((ax * t + bx) * t + cx) * t; }
+  var t = x, i;
+  for (i = 0; i < 8; i++) {
+    var err = sx(t) - x;
+    if (Math.abs(err) < 1e-6) break;
+    var d = (3 * ax * t + 2 * bx) * t + cx;
+    if (Math.abs(d) < 1e-6) break;
+    t -= err / d;
   }
-  return which === 'in' ? [hidden, shown] : [shown, hidden];
+  if (t < 0 || t > 1 || Math.abs(sx(t) - x) > 1e-4) {
+    var lo = 0, hi = 1;
+    t = x;
+    for (i = 0; i < 40; i++) {
+      var v = sx(t);
+      if (Math.abs(v - x) < 1e-6) break;
+      if (v < x) lo = t; else hi = t;
+      t = (lo + hi) / 2;
+    }
+  }
+  return ((ay * t + by) * t + cy) * t;
 }
+
+function ease(e, p) {
+  if (e === 'linear') return p;
+  if (e === 'hold') return p >= 1 ? 1 : 0;
+  var c = CURVES[e] || CURVES.smooth;
+  return cubicBezier(c[0], c[1], c[2], c[3], p);
+}
+
+function staticValue(l, prop) {
+  var v = l[prop];
+  if (typeof v === 'number') return v;
+  return prop === 'scale' || prop === 'opacity' ? 1 : 0;
+}
+
+function sortedTrack(l, prop) {
+  var tr = l.tracks && l.tracks[prop];
+  if (!tr || !tr.length) return null;
+  if (!tr.__sorted) { tr = tr.slice().sort(function (a, b) { return a.t - b.t; }); }
+  return tr;
+}
+
+function valueAt(l, prop, t) {
+  var tr = sortedTrack(l, prop);
+  if (!tr) return staticValue(l, prop);
+  if (t <= tr[0].t) return tr[0].v;
+  var last = tr[tr.length - 1];
+  if (t >= last.t) return last.v;
+  for (var i = 0; i < tr.length - 1; i++) {
+    var a = tr[i], b = tr[i + 1];
+    if (t >= a.t && t <= b.t) {
+      if (b.t === a.t) return b.v;
+      return a.v + (b.v - a.v) * ease(a.ease, (t - a.t) / (b.t - a.t));
+    }
+  }
+  return last.v;
+}
+
+function stateAt(l, t) {
+  var s = {};
+  for (var i = 0; i < PROPS.length; i++) s[PROPS[i]] = valueAt(l, PROPS[i], t);
+  return s;
+}
+
+function cssOf(l, s) {
+  return {
+    transform: 'translate(' + (s.x - l.x) + 'px, ' + (s.y - l.y) + 'px) rotate(' + s.rotation + 'deg) scale(' + s.scale + ')',
+    opacity: String(Math.max(0, Math.min(1, s.opacity))),
+    clipPath: 'inset(' + s.maskT + '% ' + s.maskR + '% ' + s.maskB + '% ' + s.maskL + '%)'
+  };
+}
+
+function normTimeline(tl) {
+  var steps = (tl && tl.steps && tl.steps.length ? tl.steps.slice() : [0]).sort(function (a, b) { return a - b; });
+  var out = Math.max(steps[steps.length - 1], (tl && tl.out) || 0);
+  return { steps: steps, out: out, duration: Math.max(out, (tl && tl.duration) || 0) };
+}
+
+/** For tests and tools; OGraf only uses the default export. */
+export const __ogpRuntime = { stateAt: stateAt, valueAt: valueAt, ease: ease, cssOf: cssOf };
 
 var CSS = [
   ':host { display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none; }',
@@ -113,8 +178,8 @@ var CSS = [
   '.canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }',
   '.stage { position: absolute; inset: 0; visibility: hidden; }',
   '.stage.on { visibility: visible; }',
-  '.L { position: absolute; }',
-  '.V { position: absolute; inset: 0; transform-origin: 50% 50%; }',
+  '.L { position: absolute; transform-origin: 50% 50%; }',
+  '.V { position: absolute; inset: 0; }',
   '.T { position: absolute; inset: 0; display: flex; overflow: visible; }',
   '.T span { display: block; width: 100%; }',
   '.I { position: absolute; inset: 0; width: 100%; height: 100%; }',
@@ -156,14 +221,30 @@ export default class OGrafEditorGraphic extends HTMLElement {
 
   async playAction(params) {
     var p = params || {};
-    var target = Number.isInteger(p.goto) && p.goto >= 0 ? p.goto : (this._step === undefined ? -1 : this._step) + (Number.isInteger(p.delta) ? p.delta : 1);
-    if (target >= 1) {
+    var tl = this._timeline();
+    var count = tl.steps.length;
+    var cur = this._step;
+    var target = Number.isInteger(p.goto) && p.goto >= 0 ? p.goto : (cur === undefined ? -1 : cur) + (Number.isInteger(p.delta) ? p.delta : 1);
+    if (target < 0) target = 0;
+    if (target >= count) {
       await this._out(p.skipAnimation);
       return { statusCode: 200, currentStep: undefined };
     }
-    this._step = 0;
-    if (!this._visible) await this._in(p.skipAnimation);
-    return { statusCode: 200, currentStep: 0 };
+    this._step = target;
+    if (cur === undefined || !this._visible) {
+      // from the start state: play from 0 to the target step
+      this._cancelAll();
+      this._visible = true;
+      this._applyStateAt(0);
+      this._stage.classList.add('on');
+      await this._playSegment(0, tl.steps[target], p.skipAnimation);
+    } else if (target > cur) {
+      await this._playSegment(tl.steps[cur], tl.steps[target], p.skipAnimation);
+    } else if (target < cur) {
+      // going back: a short transition from the current state to the state of that step
+      await this._transitionTo(tl.steps[target], 400, p.skipAnimation);
+    }
+    return { statusCode: 200, currentStep: this._step === undefined ? undefined : this._step };
   }
 
   async stopAction(params) {
@@ -182,7 +263,10 @@ export default class OGrafEditorGraphic extends HTMLElement {
     return { statusCode: 404, statusMessage: 'Unknown custom action "' + ((params || {}).id) + '"' };
   }
 
-  /** Editor hook (vendor): replace project/data and show the final state without animation. */
+  /**
+   * Editor hook (vendor): replace project/data and show the state at "time" (ms on the timeline;
+   * default: the first step) without animation.
+   */
   v_ogpEdit(opts) {
     var o = opts || {};
     if (o.project) this._project = o.project;
@@ -192,7 +276,23 @@ export default class OGrafEditorGraphic extends HTMLElement {
     this._apply();
     this._visible = o.shown !== false;
     this._step = this._visible ? 0 : undefined;
+    this._applyStateAt(typeof o.time === 'number' ? o.time : this._timeline().steps[0]);
     this._stage.classList.toggle('on', this._visible);
+  }
+
+  /** Editor hook: show the state at time t (scrubbing). */
+  v_ogpSeek(t) {
+    this._cancelAll();
+    this._applyStateAt(t);
+    this._stage.classList.add('on');
+  }
+
+  /** Editor hook: play the timeline from t0 to t1 (preview). */
+  v_ogpPlayRange(t0, t1) {
+    this._cancelAll();
+    this._applyStateAt(t0);
+    this._stage.classList.add('on');
+    return this._playSegment(t0, t1, false);
   }
 
   // ------------------------------------------------------------- building
@@ -272,8 +372,6 @@ export default class OGrafEditorGraphic extends HTMLElement {
       var b = l.bindings || {};
       var bs = n.box.style, vs = n.vis.style;
       bs.left = l.x + 'px'; bs.top = l.y + 'px'; bs.width = l.width + 'px'; bs.height = l.height + 'px';
-      vs.transform = l.rotation ? 'rotate(' + l.rotation + 'deg)' : '';
-      vs.opacity = String(l.opacity);
       var shown = l.visible !== false && (b.visible ? Boolean(d[b.visible]) : true);
       n.box.classList.toggle('hide', !shown);
       if (l.type === 'shape') {
@@ -348,18 +446,67 @@ export default class OGrafEditorGraphic extends HTMLElement {
 
   // ------------------------------------------------------------- animation
 
-  async _in(skip) {
+  _timeline() {
+    return normTimeline(this._project && this._project.timeline);
+  }
+
+  _applyStateAt(t) {
+    for (var i = 0; i < this._nodes.length; i++) {
+      var n = this._nodes[i];
+      var c = cssOf(n.l, stateAt(n.l, t));
+      var st = n.box.style;
+      st.transform = c.transform;
+      st.opacity = c.opacity;
+      st.clipPath = c.clipPath;
+    }
+  }
+
+  /** Plays the timeline from t0 to t1, starting every layer from its current state (no jumps when interrupting). */
+  async _playSegment(t0, t1, skip) {
     this._cancelAll();
-    this._visible = true;
+    var dur = t1 - t0;
+    if (skip || dur <= 0 || document.visibilityState === 'hidden') {
+      this._applyStateAt(t1);
+      return;
+    }
+    var samples = Math.max(2, Math.ceil(dur / (1000 / 60)));
     var runs = [];
     for (var i = 0; i < this._nodes.length; i++) {
       var n = this._nodes[i];
-      var a = n.l.anim && n.l.anim.in;
-      var frames = a ? presetFrames(a, 'in') : null;
-      if (frames) runs.push(this._run(n.box, frames, { duration: a.duration, delay: a.delay, easing: EASE[a.easing] || EASE.smooth }, skip));
-      else { n.box.style.removeProperty('opacity'); n.box.style.removeProperty('transform'); n.box.style.removeProperty('clip-path'); }
+      var frames = [];
+      var constant = true;
+      var first = null;
+      for (var k = 1; k <= samples; k++) {
+        var c = cssOf(n.l, stateAt(n.l, t0 + dur * k / samples));
+        var key = c.transform + c.opacity + c.clipPath;
+        if (first === null) first = key; else if (key !== first) constant = false;
+        frames.push({ offset: k / samples, transform: c.transform, opacity: c.opacity, clipPath: c.clipPath });
+      }
+      var start = cssOf(n.l, stateAt(n.l, t0));
+      if (constant && start.transform + start.opacity + start.clipPath === first) {
+        // nothing moves in this segment for this layer: make sure it is at its target state
+        var s0 = n.box.style;
+        var end = frames[frames.length - 1];
+        if (s0.transform !== end.transform || s0.opacity !== end.opacity || s0.clipPath !== end.clipPath) {
+          s0.transform = end.transform; s0.opacity = end.opacity; s0.clipPath = end.clipPath;
+        }
+        continue;
+      }
+      // no offset-0 keyframe: the animation starts from the current (committed) state
+      runs.push(this._run(n.box, frames, { duration: dur, delay: 0, easing: 'linear' }, false));
     }
-    this._stage.classList.add('on');
+    await Promise.all(runs);
+  }
+
+  async _transitionTo(t, duration, skip) {
+    this._cancelAll();
+    if (skip || document.visibilityState === 'hidden') return this._applyStateAt(t);
+    var runs = [];
+    for (var i = 0; i < this._nodes.length; i++) {
+      var n = this._nodes[i];
+      var c = cssOf(n.l, stateAt(n.l, t));
+      runs.push(this._run(n.box, [{ offset: 1, transform: c.transform, opacity: c.opacity, clipPath: c.clipPath }], { duration: duration, delay: 0, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }, false));
+    }
     await Promise.all(runs);
   }
 
@@ -367,29 +514,10 @@ export default class OGrafEditorGraphic extends HTMLElement {
     this._step = undefined;
     if (!this._visible) return;
     this._visible = false;
-    this._cancelAll();
-    var runs = [];
-    var longest = 0;
-    for (var i = 0; i < this._nodes.length; i++) {
-      var n = this._nodes[i];
-      var a = n.l.anim && n.l.anim.out;
-      var frames = a ? presetFrames(a, 'out') : null;
-      if (frames) {
-        longest = Math.max(longest, a.delay + a.duration);
-        runs.push(this._run(n.box, frames, { duration: a.duration, delay: a.delay, easing: EASE[a.easing] || EASE.smooth }, skip));
-      }
-    }
-    await Promise.all(runs);
+    var tl = this._timeline();
+    await this._playSegment(tl.out, tl.duration, skip);
     if (this._visible) return;
     this._stage.classList.remove('on');
-    this._resetAnimatedStyles();
-  }
-
-  _resetAnimatedStyles() {
-    for (var i = 0; i < this._nodes.length; i++) {
-      var s = this._nodes[i].box.style;
-      s.removeProperty('opacity'); s.removeProperty('transform'); s.removeProperty('clip-path');
-    }
   }
 
   /**

@@ -1,22 +1,35 @@
 /**
  * Properties of the selected layer (or of the graphic when nothing is selected).
  */
-import { useRef } from 'react';
-import { slugify, type AnimPreset, type AnimType, type Field, type Layer } from '@ogp/editor-core';
+import { useRef, useState } from 'react';
+import {
+  applyPreset, ensureFits, removeKeyframe, setKeyframe, slugify, sortedTrack, toggleAnimated, updateLayer, valueAt,
+  type AnimType, type Easing, type Field, type Layer, type Prop,
+} from '@ogp/editor-core';
 import type { EditorApi } from '../App.tsx';
 import { api } from '../lib/api.ts';
+import type { AlignMode } from '../lib/selection.ts';
 import { toast } from '../lib/toast.ts';
 import { Check, Color, Num, Select, Text } from './controls.tsx';
+import { EASING_OPTIONS } from './Timeline.tsx';
 
 const ANIMS: [AnimType, string][] = [
-  ['none', 'None'], ['fade', 'Fade'], ['scale', 'Scale'], ['pop', 'Pop'],
+  ['fade', 'Fade'], ['scale', 'Scale'], ['pop', 'Pop'],
   ['slide-right', 'Slide →'], ['slide-left', 'Slide ←'], ['slide-up', 'Slide ↑'], ['slide-down', 'Slide ↓'],
   ['wipe-right', 'Wipe →'], ['wipe-left', 'Wipe ←'], ['wipe-up', 'Wipe ↑'], ['wipe-down', 'Wipe ↓'],
 ];
-const EASINGS: [AnimPreset['easing'], string][] = [['smooth', 'Smooth'], ['ease-out', 'Ease out'], ['ease-in', 'Ease in'], ['ease-in-out', 'Ease in-out'], ['back', 'Overshoot'], ['linear', 'Linear']];
 const FONTS = ['Inter, "Segoe UI", Roboto, Arial, sans-serif', 'Arial, Helvetica, sans-serif', '"Helvetica Neue", Helvetica, Arial, sans-serif', 'Georgia, "Times New Roman", serif', '"Roboto Condensed", "Arial Narrow", sans-serif', 'Impact, "Arial Black", sans-serif', 'ui-monospace, Menlo, Consolas, monospace'];
 
-export function PropertiesPanel({ editor, layer }: { editor: EditorApi; layer: Layer | undefined }) {
+interface PanelProps {
+  editor: EditorApi;
+  layer: Layer | undefined;
+  onAlign: (m: AlignMode) => void;
+  onGroup: () => void;
+  onUngroup: () => void;
+}
+
+export function PropertiesPanel({ editor, layer, onAlign, onGroup, onUngroup }: PanelProps) {
+  if (editor.selectedIds.length > 1) return <MultiProperties editor={editor} onAlign={onAlign} onGroup={onGroup} />;
   if (!layer) return <GraphicProperties editor={editor} />;
   const id = layer.id;
   const set = (patch: Partial<Layer>, key = Object.keys(patch).join(',')) => editor.updateLayer(id, patch, `${id}:${key}`);
@@ -28,20 +41,35 @@ export function PropertiesPanel({ editor, layer }: { editor: EditorApi; layer: L
       <h3>{layer.type === 'shape' ? 'Shape' : layer.type[0]!.toUpperCase() + layer.type.slice(1)} <span className="muted">{layer.name}</span></h3>
 
       <section>
-        <h4>Position & size</h4>
+        <h4>Transform <span className="muted">at {editor.time} ms</span></h4>
         <div className="grid2">
-          <Num label="X" value={layer.x} onChange={(x) => set({ x })} />
-          <Num label="Y" value={layer.y} onChange={(y) => set({ y })} />
+          <AnimNum editor={editor} layer={layer} prop="x" label="X" />
+          <AnimNum editor={editor} layer={layer} prop="y" label="Y" />
           <Num label="W" value={layer.width} min={1} onChange={(width) => set({ width })} />
           <Num label="H" value={layer.height} min={1} onChange={(height) => set({ height })} />
-          <Num label="Rotate" value={layer.rotation} step={1} suffix="°" onChange={(rotation) => set({ rotation })} />
-          <Num label="Opacity" value={Math.round(layer.opacity * 100)} min={0} max={100} suffix="%" onChange={(v) => set({ opacity: v / 100 })} />
+          <AnimNum editor={editor} layer={layer} prop="scale" label="Scale" factor={100} suffix="%" min={0} />
+          <AnimNum editor={editor} layer={layer} prop="rotation" label="Rotate" suffix="°" />
+          <AnimNum editor={editor} layer={layer} prop="opacity" label="Opacity" factor={100} suffix="%" min={0} max={100} />
         </div>
         <div className="row">
-          <button className="small" onClick={() => set({ x: Math.round((editor.project.width - layer.width) / 2) })}>Centre H</button>
-          <button className="small" onClick={() => set({ y: Math.round((editor.project.height - layer.height) / 2) })}>Centre V</button>
+          <button className="small" onClick={() => onAlign('hcenter')}>Centre H</button>
+          <button className="small" onClick={() => onAlign('vcenter')}>Centre V</button>
+          {layer.type === 'group' && <button className="small" onClick={onUngroup}>Ungroup</button>}
         </div>
       </section>
+
+      <section>
+        <h4>Mask (crop from each edge)</h4>
+        <div className="grid2">
+          <AnimNum editor={editor} layer={layer} prop="maskL" label="Left" suffix="%" min={0} max={100} />
+          <AnimNum editor={editor} layer={layer} prop="maskR" label="Right" suffix="%" min={0} max={100} />
+          <AnimNum editor={editor} layer={layer} prop="maskT" label="Top" suffix="%" min={0} max={100} />
+          <AnimNum editor={editor} layer={layer} prop="maskB" label="Bottom" suffix="%" min={0} max={100} />
+        </div>
+        <p className="hint">⏱ animates a property: changes then create keyframes at the playhead. ◆ adds/removes a keyframe at the playhead.</p>
+      </section>
+
+      <QuickAnimation editor={editor} layer={layer} />
 
       {layer.type === 'text' && (
         <section>
@@ -121,12 +149,6 @@ export function PropertiesPanel({ editor, layer }: { editor: EditorApi; layer: L
         {fields.length === 0 && <p className="hint">Add data fields (left, "Data fields") to bind properties.</p>}
       </section>
 
-      <section>
-        <h4>Animation</h4>
-        <AnimEditor label="In" value={layer.anim.in} onChange={(a) => set({ anim: { ...layer.anim, in: a } }, 'anim-in')} />
-        <AnimEditor label="Out" value={layer.anim.out} onChange={(a) => set({ anim: { ...layer.anim, out: a } }, 'anim-out')} />
-        <p className="hint">Delays are relative to the take / out. Use ▶ In and ■ Out above the canvas to preview.</p>
-      </section>
     </div>
   );
 }
@@ -166,21 +188,91 @@ function BindSelect(props: { label: string; value: string | undefined; fields: F
   );
 }
 
-function AnimEditor({ label, value, onChange }: { label: string; value: AnimPreset; onChange: (a: AnimPreset) => void }) {
-  const set = (p: Partial<AnimPreset>) => onChange({ ...value, ...p });
+/** Number input for an animatable property (value at the playhead) with stopwatch and keyframe toggle. */
+function AnimNum({ editor, layer, prop, label, factor = 1, suffix, min, max }: {
+  editor: EditorApi; layer: Layer; prop: Prop; label: string; factor?: number; suffix?: string; min?: number; max?: number;
+}) {
+  const t = editor.time;
+  const track = sortedTrack(layer.tracks[prop]);
+  const animated = track.length > 0;
+  const atHead = track.find((k) => k.t === t);
+  const v = valueAt(layer, prop, t) * factor;
+  const upd = (fn: (l: Layer) => Layer, key: string) => editor.change((p) => ({ ...p, layers: updateLayer(p.layers, layer.id, fn) }), key);
   return (
-    <div className="anim">
-      <div className="grid2">
-        <Select label={label} value={value.type} options={ANIMS} onChange={(type) => set({ type, duration: type !== 'none' && value.duration === 0 ? 500 : value.duration })} />
-        {value.type !== 'none' && <Select label="Easing" value={value.easing} options={EASINGS} onChange={(easing) => set({ easing })} />}
-      </div>
-      {value.type !== 'none' && (
-        <div className="grid2">
-          <Num label="Delay" value={value.delay} min={0} step={20} suffix="ms" onChange={(delay) => set({ delay })} />
-          <Num label="Duration" value={value.duration} min={0} step={20} suffix="ms" onChange={(duration) => set({ duration })} />
-          {value.type.startsWith('slide') && <Num label="Distance" value={value.distance} min={0} step={5} suffix="px" onChange={(distance) => set({ distance })} />}
-        </div>
+    <div className={`anim-num ${animated ? 'animated' : ''} ${atHead ? 'on-key' : ''}`}>
+      <Num label={label} value={Math.round(v * 100) / 100} min={min} max={max} suffix={suffix} step={prop === 'scale' ? 5 : 1}
+        onChange={(n) => editor.setProp(layer.id, prop, n / factor, `${layer.id}:${prop}:${t}`)} />
+      <button className={`sw ${animated ? 'on' : ''}`} title={animated ? 'Stop animating' : 'Animate (keyframe at the playhead)'} onClick={() => upd((l) => toggleAnimated(l, prop, t), `sw-${layer.id}-${prop}`)}>⏱</button>
+      {animated && (
+        <button className={`kf-toggle ${atHead ? 'on' : ''}`} title={atHead ? 'Remove keyframe at the playhead' : 'Add keyframe at the playhead'}
+          onClick={() => upd((l) => (atHead ? removeKeyframe(l, prop, atHead.id) : setKeyframe(l, prop, t, valueAt(l, prop, t))), `kf-${layer.id}-${prop}`)}>◆</button>
       )}
+    </div>
+  );
+}
+
+/** Generates in/out keyframes from a preset. */
+function QuickAnimation({ editor, layer }: { editor: EditorApi; layer: Layer }) {
+  const [type, setType] = useState<AnimType>('slide-right');
+  const [which, setWhich] = useState<'in' | 'out'>('in');
+  const [duration, setDuration] = useState(500);
+  const [easing, setEasing] = useState<Easing | 'auto'>('auto');
+  const [distance, setDistance] = useState(60);
+  const add = () => {
+    const tl = editor.project.timeline;
+    const t = editor.time;
+    const t0 = which === 'in' ? (t < tl.steps[0]! ? t : 0) : Math.max(t, tl.out);
+    editor.change((p) => ({
+      ...p,
+      layers: updateLayer(p.layers, layer.id, (l) => applyPreset(l, type, which, t0, duration, { distance, easing: easing === 'auto' ? undefined : easing })),
+      timeline: ensureFits(p.timeline, t0 + duration, which),
+    }));
+    toast('info', `Added ${which} keyframes ${t0}–${t0 + duration} ms`);
+  };
+  return (
+    <section>
+      <h4>Quick animation</h4>
+      <div className="grid2">
+        <Select label="Segment" value={which} options={[['in', 'In'], ['out', 'Out']]} onChange={setWhich} />
+        <Select label="Preset" value={type} options={ANIMS} onChange={setType} />
+        <Num label="Duration" value={duration} min={20} step={50} suffix="ms" onChange={setDuration} />
+        <Select label="Easing" value={easing} options={[['auto', 'Auto'], ...EASING_OPTIONS.filter(([e]) => e !== 'hold')]} onChange={setEasing} />
+        {type.startsWith('slide') && <Num label="Distance" value={distance} min={0} step={10} suffix="px" onChange={setDistance} />}
+      </div>
+      <button className="small" onClick={add}>Add keyframes</button>
+      <p className="hint">In starts at the playhead (or 0 if the playhead is after S1); Out starts at the OUT marker or the playhead, whichever is later.</p>
+    </section>
+  );
+}
+
+function MultiProperties({ editor, onAlign, onGroup }: { editor: EditorApi; onAlign: (m: AlignMode) => void; onGroup: () => void }) {
+  const n = editor.selectedIds.length;
+  const btn = (m: AlignMode, label: string, title: string, disabled = false) => <button className="small" disabled={disabled} onClick={() => onAlign(m)} title={title}>{label}</button>;
+  return (
+    <div className="panel props">
+      <h3>{n} layers selected</h3>
+      <section>
+        <h4>Align</h4>
+        <div className="align-grid">
+          {btn('left', '⇤ Left', 'Align left edges')}
+          {btn('hcenter', '↔ Centre', 'Align horizontal centres')}
+          {btn('right', 'Right ⇥', 'Align right edges')}
+          {btn('top', '⤒ Top', 'Align top edges')}
+          {btn('vcenter', '↕ Middle', 'Align vertical centres')}
+          {btn('bottom', 'Bottom ⤓', 'Align bottom edges')}
+        </div>
+        <h4>Distribute</h4>
+        <div className="row">
+          {btn('hdistribute', 'Horizontally', 'Equal gaps horizontally (3+ layers)', n < 3)}
+          {btn('vdistribute', 'Vertically', 'Equal gaps vertically (3+ layers)', n < 3)}
+        </div>
+        <p className="hint">Positions are set at the playhead ({editor.time} ms) – animated positions get a keyframe.</p>
+      </section>
+      <section>
+        <h4>Arrange</h4>
+        <button className="small" onClick={onGroup}>Group (Ctrl/⌘+G)</button>
+        <p className="hint">Drag on the canvas to move all, arrows nudge, Ctrl/⌘+C / D / Del work on the whole selection.</p>
+      </section>
     </div>
   );
 }

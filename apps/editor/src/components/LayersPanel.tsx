@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import type { Layer, LayerType } from '@ogp/editor-core';
+import { findLayer, isAnimated, type Layer, type LayerType } from '@ogp/editor-core';
 import type { EditorApi } from '../App.tsx';
 
 const ICON: Record<LayerType, string> = { text: 'T', shape: '▭', image: '🖼', group: '▤' };
 
 export function LayersPanel(props: {
   editor: EditorApi; onAdd: (t: LayerType) => void; onDuplicate: () => void; onDelete: () => void; onMove: (dir: 1 | -1) => void;
-  onCopy: () => void; onCut: () => void; onPaste: () => void;
+  onCopy: () => void; onCut: () => void; onPaste: () => void; onGroup: () => void; onUngroup: () => void;
 }) {
   const { editor } = props;
   const sel = editor.selectedId;
+  const primary = sel ? findLayer(editor.project.layers, sel) : undefined;
   return (
     <div className="panel layers-panel">
       <div className="add-row">
@@ -23,6 +24,7 @@ export function LayersPanel(props: {
         {[...editor.project.layers].reverse().map((l) => <Row key={l.id} layer={l} depth={0} editor={editor} />)}
         {editor.project.layers.length === 0 && <p className="hint">No layers – add one above.</p>}
       </div>
+      <p className="hint">Shift-click selects a range, Ctrl/⌘-click toggles.</p>
       <div className="tree-tools">
         <button disabled={!sel} onClick={() => props.onMove(1)} title="Bring forward">▲</button>
         <button disabled={!sel} onClick={() => props.onMove(-1)} title="Send backward">▼</button>
@@ -30,6 +32,8 @@ export function LayersPanel(props: {
         <button disabled={!sel} onClick={props.onCut} title="Cut (Ctrl/⌘+X)">Cut</button>
         <button onClick={props.onPaste} title="Paste (Ctrl/⌘+V) – layers, images or text">Paste</button>
         <button disabled={!sel} onClick={props.onDuplicate} title="Duplicate (Ctrl/⌘+D)">⧉</button>
+        <button disabled={!sel} onClick={props.onGroup} title="Group the selected layers (Ctrl/⌘+G)">▤+</button>
+        <button disabled={primary?.type !== 'group'} onClick={props.onUngroup} title="Ungroup (Ctrl/⌘+Shift+G)">▤−</button>
         <button disabled={!sel} onClick={props.onDelete} title="Delete (Del)">🗑</button>
       </div>
     </div>
@@ -39,13 +43,14 @@ export function LayersPanel(props: {
 function Row({ layer, depth, editor }: { layer: Layer; depth: number; editor: EditorApi }) {
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
-  const selected = editor.selectedId === layer.id;
+  const selected = editor.selectedIds.includes(layer.id);
+  const primary = editor.selectedId === layer.id;
   return (
     <>
       <div
-        className={`row ${selected ? 'sel' : ''} ${layer.visible ? '' : 'off'}`}
+        className={`row ${selected ? 'sel' : ''} ${primary && editor.selectedIds.length > 1 ? 'primary' : ''} ${layer.visible ? '' : 'off'}`}
         style={{ paddingLeft: 6 + depth * 16 }}
-        onClick={(e) => { e.stopPropagation(); editor.select(layer.id); }}
+        onClick={(e) => { e.stopPropagation(); editor.select(layer.id, e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : 'replace'); }}
         onDoubleClick={() => setRenaming(true)}
       >
         {layer.type === 'group'
@@ -57,6 +62,7 @@ function Row({ layer, depth, editor }: { layer: Layer; depth: number; editor: Ed
             onBlur={(e) => { setRenaming(false); if (e.target.value.trim()) editor.updateLayer(layer.id, { name: e.target.value.trim() }); }}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(false); }} />
         ) : <span className="nm">{layer.name}</span>}
+        {isAnimated(layer) && <span className="animated" title="Has keyframes">◆</span>}
         {Object.keys(layer.bindings).some((k) => layer.bindings[k as keyof typeof layer.bindings]) || (layer.type === 'text' && /\{[A-Za-z_]/.test(layer.text)) ? <span className="bound" title="Uses data fields">⛓</span> : null}
         <button className="icon" title={layer.visible ? 'Hide' : 'Show'} onClick={(e) => { e.stopPropagation(); editor.updateLayer(layer.id, { visible: !layer.visible }); }}>{layer.visible ? '👁' : '◌'}</button>
         <button className="icon" title={layer.locked ? 'Unlock' : 'Lock'} onClick={(e) => { e.stopPropagation(); editor.updateLayer(layer.id, { locked: !layer.locked }); }}>{layer.locked ? '🔒' : '🔓'}</button>

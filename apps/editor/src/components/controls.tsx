@@ -22,7 +22,7 @@ export function Num(props: { label: string; value: number; onChange: (v: number)
         min={props.min}
         max={props.max}
         onChange={(e) => { setText(e.target.value); if (e.target.value !== '' && Number.isFinite(Number(e.target.value))) commit(e.target.value); }}
-        onBlur={(e) => commit(e.target.value)}
+        onBlur={(e) => { if (e.target.value !== String(props.value)) commit(e.target.value); }}
       />
       {props.suffix && <em>{props.suffix}</em>}
     </label>

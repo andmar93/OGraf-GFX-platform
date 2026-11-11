@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createProject, type TextLayer } from '@ogp/editor-core';
+import { createLayer, createProject, editProp, findLayer, toggleAnimated, valueAt, type Layer, type TextLayer } from '@ogp/editor-core';
+import { absRectAt, alignLayers, flatten, groupLayers, normaliseSelection, rangeSelect, ungroupLayer } from '../src/lib/selection.ts';
 import { pushState, redoState, undoState } from '../src/lib/history.ts';
 import { resize, safeAreas, snapLines, snapMove } from '../src/lib/geometry.ts';
 import { renameFieldKey } from '../src/components/FieldsPanel.tsx';
@@ -95,5 +96,67 @@ describe('clipboard', async () => {
     expect(parse('hello')).toBeUndefined();
     expect(parse('{"kind":"other","layers":[]}')).toBeUndefined();
     expect(parse('{broken')).toBeUndefined();
+  });
+});
+
+describe('multi-selection helpers', () => {
+  const mk = (id: string, x: number, y: number, w = 100, h = 50): Layer => ({ ...createLayer('shape', { x, y }), id, name: id, width: w, height: h });
+
+  it('flattens top-most first and range-selects in list order', () => {
+    const layers = [mk('a', 0, 0), mk('b', 0, 0), mk('c', 0, 0)];
+    expect(flatten(layers).map((r) => r.layer.id)).toEqual(['c', 'b', 'a']);
+    expect(rangeSelect(layers, 'c', 'a')).toEqual(['c', 'b', 'a']);
+  });
+
+  it('groups keeping absolute positions (incl. keyframes) and ungroups back', () => {
+    let a = mk('a', 100, 200);
+    a = editProp(toggleAnimated(a, 'x', 0), 'x', 300, 500);
+    const layers = [a, mk('b', 150, 120), mk('c', 0, 0)];
+    const r = groupLayers(layers, ['a', 'b']);
+    if ('error' in r) throw new Error(r.error);
+    const g = findLayer(r.layers, r.groupId)!;
+    expect(g).toMatchObject({ x: 100, y: 120, width: 150, height: 130 });
+    expect(absRectAt(r.layers, 'a', 500)).toMatchObject({ x: 300, y: 200 });
+    expect(absRectAt(r.layers, 'b', 0)).toMatchObject({ x: 150, y: 120 });
+    expect(r.layers.map((l) => l.id)).toEqual([r.groupId, 'c']);
+    const u = ungroupLayer(r.layers, r.groupId);
+    if ('error' in u) throw new Error(u.error);
+    expect(absRectAt(u.layers, 'a', 500).x).toBe(300);
+    expect(absRectAt(u.layers, 'b', 0)).toMatchObject({ x: 150, y: 120 });
+  });
+
+  it('refuses to group layers from different parents', () => {
+    const r = groupLayers([mk('a', 0, 0), mk('b', 0, 0)], ['a', 'b']);
+    if ('error' in r) throw new Error(r.error);
+    const r2 = groupLayers([...r.layers, mk('c', 0, 0)], ['a', 'c']);
+    expect('error' in r2).toBe(true);
+  });
+
+  it('aligns and distributes', () => {
+    const layers = [mk('a', 10, 0), mk('b', 200, 40, 50), mk('c', 400, 80)];
+    const left = alignLayers(layers, ['a', 'b', 'c'], 'left', 0);
+    expect(left.map((l) => l.x)).toEqual([10, 10, 10]);
+    const right = alignLayers(layers, ['a', 'b', 'c'], 'right', 0);
+    expect(right.map((l) => l.x + l.width)).toEqual([500, 500, 500]);
+    const dist = alignLayers(layers, ['a', 'b', 'c'], 'hdistribute', 0);
+    // span 10..500 = 490, widths 250 → gap 120
+    expect(dist.map((l) => l.x)).toEqual([10, 230, 400]);
+    // a single layer aligns to the canvas
+    expect(alignLayers(layers, ['a'], 'hcenter', 0, { width: 1920, height: 1080 })[0]!.x).toBe(910);
+  });
+
+  it('align at the playhead keyframes animated positions', () => {
+    let a = mk('a', 0, 0);
+    a = editProp(toggleAnimated(a, 'x', 0), 'x', 500, 1000);
+    const out = alignLayers([a, mk('b', 50, 0)], ['a', 'b'], 'left', 1000);
+    const na = findLayer(out, 'a')!;
+    expect(valueAt(na, 'x', 1000)).toBe(50);
+    expect(valueAt(na, 'x', 0)).toBe(0);
+  });
+
+  it('normalises selections that contain a group and its child', () => {
+    const r = groupLayers([mk('a', 0, 0), mk('b', 0, 0)], ['a', 'b']);
+    if ('error' in r) throw new Error(r.error);
+    expect(normaliseSelection(r.layers, ['a', r.groupId])).toEqual([r.groupId]);
   });
 });

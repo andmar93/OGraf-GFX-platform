@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { unzipSync, zipSync } from 'fflate';
 import {
-  cloneLayer, createLayer, createProject, exportPackage, findLayer, importPackage, insertLayer, moveLayer, normaliseProject,
-  removeLayer, slugify, updateLayer, type Layer, type LayerType, type Project,
+  cloneLayer, createLayer, createProject, editProp, exportPackage, findLayer, importPackage, insertLayer, moveLayer, normaliseProject,
+  removeKeyframe, removeLayer, slugify, updateLayer, valueAt, type Layer, type LayerType, type Project, type Prop,
 } from '@ogp/editor-core';
 import { api, ApiError, type ProjectSummary } from './lib/api.ts';
 import { parse as parseClipboard, prepareForPaste, serialize as serializeLayers } from './lib/clipboard.ts';
+import { alignLayers, groupLayers, normaliseSelection, rangeSelect, ungroupLayer, type AlignMode } from './lib/selection.ts';
+import { Timeline, type PreviewController } from './components/Timeline.tsx';
 import { useHistory } from './lib/history.ts';
 import { toast } from './lib/toast.ts';
 import { Canvas } from './components/Canvas.tsx';
@@ -14,13 +16,32 @@ import { FieldsPanel } from './components/FieldsPanel.tsx';
 import { PropertiesPanel } from './components/PropertiesPanel.tsx';
 import { Toasts } from './components/Toasts.tsx';
 
+/** A selected keyframe in the timeline. */
+export interface KeyRef {
+  layerId: string;
+  prop: Prop;
+  id: string;
+}
+
 export interface EditorApi {
   project: Project;
+  /** Selected layer ids (last = primary) */
+  selectedIds: string[];
+  /** Primary selection (last selected) */
   selectedId: string | null;
-  select: (id: string | null) => void;
+  /** replace (click), toggle (Ctrl/⌘-click), range (Shift-click), add */
+  select: (id: string | null, mode?: 'replace' | 'toggle' | 'range' | 'add') => void;
+  selectMany: (ids: string[]) => void;
   /** Applies a change; edits with the same coalesce key in quick succession are one undo step. */
   change: (fn: (p: Project) => Project, coalesceKey?: string) => void;
   updateLayer: (id: string, patch: Partial<Layer>, coalesceKey?: string) => void;
+  /** Sets an animatable property at the playhead (keyframe when animated, static value otherwise). */
+  setProp: (id: string, prop: Prop, value: number, coalesceKey?: string) => void;
+  /** Playhead in ms */
+  time: number;
+  setTime: (t: number) => void;
+  selectedKeys: KeyRef[];
+  setSelectedKeys: (k: KeyRef[]) => void;
 }
 
 const isTyping = (t: EventTarget | null) => {
@@ -113,11 +134,15 @@ function ProjectList(props: { list: ProjectSummary[]; onOpen: (id: string) => vo
 function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () => void; onImport: (f: File) => void }) {
   const h = useHistory<Project>(initial);
   const project = h.state;
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<KeyRef[]>([]);
+  const [time, setTimeState] = useState(() => initial.timeline.steps[0] ?? 0);
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
   const [leftTab, setLeftTab] = useState<'layers' | 'fields'>('layers');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const preview = useRef<PreviewController | null>(null);
+  const togglePlay = useRef<(() => void) | null>(null);
 
   // autosave (debounced)
   const first = useRef(true);
@@ -130,35 +155,111 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
     return () => clearTimeout(t);
   }, [project]);
 
+  // drop selections of layers that no longer exist
+  useEffect(() => {
+    setSelectedIds((ids) => {
+      const ok = ids.filter((id) => findLayer(project.layers, id));
+      return ok.length === ids.length ? ids : ok;
+    });
+  }, [project.layers]);
+
+  const setTime = useCallback((t: number) => setTimeState(Math.max(0, Math.min(Math.round(t), project.timeline.duration))), [project.timeline.duration]);
+
+  const select = useCallback((id: string | null, mode: 'replace' | 'toggle' | 'range' | 'add' = 'replace') => {
+    if (!id) return setSelectedIds([]);
+    setSelectedIds((cur) => {
+      if (mode === 'toggle') return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      if (mode === 'add') return cur.includes(id) ? cur : [...cur, id];
+      if (mode === 'range' && cur.length) return [...rangeSelect(project.layers, cur[cur.length - 1]!, id).filter((x) => x !== id), id];
+      return [id];
+    });
+  }, [project.layers]);
+
   const editor: EditorApi = useMemo(() => ({
     project,
-    selectedId,
-    select: setSelectedId,
+    selectedIds,
+    selectedId: selectedIds[selectedIds.length - 1] ?? null,
+    select,
+    selectMany: setSelectedIds,
     change: h.set,
     updateLayer: (id, patch, key) => h.set((p) => ({ ...p, layers: updateLayer(p.layers, id, patch) }), key),
-  }), [project, selectedId, h.set]);
+    setProp: (id, prop, value, key) => h.set((p) => ({ ...p, layers: updateLayer(p.layers, id, (l) => editProp(l, prop, value, time)) }), key),
+    time,
+    setTime,
+    selectedKeys,
+    setSelectedKeys,
+  }), [project, selectedIds, select, h.set, time, setTime, selectedKeys]);
 
-  const selected = selectedId ? findLayer(project.layers, selectedId) : undefined;
+  const selected = editor.selectedId ? findLayer(project.layers, editor.selectedId) : undefined;
+  /** Selection without layers whose group is also selected */
+  const roots = () => normaliseSelection(project.layers, selectedIds);
 
   const addLayer = (type: LayerType) => {
     const layer = createLayer(type);
     h.set((p) => {
-      const sel = selectedId ? findLayer(p.layers, selectedId) : undefined;
+      const sel = selected;
       return { ...p, layers: sel?.type === 'group' ? insertLayer(p.layers, { ...layer, x: 20, y: 20 }, null, sel.id) : insertLayer(p.layers, layer, sel?.id ?? null) };
     });
-    setSelectedId(layer.id);
+    setSelectedIds([layer.id]);
   };
   const duplicate = () => {
-    if (!selected) return;
-    const c = cloneLayer(selected);
-    h.set((p) => ({ ...p, layers: insertLayer(p.layers, c, selected.id) }));
-    setSelectedId(c.id);
+    const ids = roots();
+    if (!ids.length) return;
+    const copies: string[] = [];
+    h.set((p) => {
+      let layers = p.layers;
+      for (const id of ids) {
+        const l = findLayer(layers, id);
+        if (!l) continue;
+        const c = cloneLayer(l);
+        copies.push(c.id);
+        layers = insertLayer(layers, c, id);
+      }
+      return { ...p, layers };
+    });
+    setSelectedIds(copies);
   };
+  const remove = () => {
+    const ids = roots();
+    if (!ids.length) return;
+    h.set((p) => ({ ...p, layers: ids.reduce((ls, id) => removeLayer(ls, id), p.layers) }));
+    setSelectedIds([]);
+  };
+  const move = (dir: 1 | -1) => {
+    const ids = roots();
+    h.set((p) => ({ ...p, layers: (dir === 1 ? [...ids].reverse() : ids).reduce((ls, id) => moveLayer(ls, id, dir), p.layers) }));
+  };
+  const group = () => {
+    const r = groupLayers(project.layers, selectedIds);
+    if ('error' in r) return toast('error', r.error);
+    h.set((p) => ({ ...p, layers: r.layers }));
+    setSelectedIds([r.groupId]);
+  };
+  const ungroup = () => {
+    const g = selected;
+    if (!g || g.type !== 'group') return toast('info', 'Select a group to ungroup');
+    if (g.rotation || g.scale !== 1 || g.opacity !== 1 || Object.keys(g.tracks).length) toast('info', 'The group\'s own rotation, scale, opacity and animation are dropped when ungrouping');
+    const r = ungroupLayer(project.layers, g.id);
+    if ('error' in r) return toast('error', r.error);
+    h.set((p) => ({ ...p, layers: r.layers }));
+    setSelectedIds(r.childIds);
+  };
+  const align = (mode: AlignMode) => h.set((p) => ({ ...p, layers: alignLayers(p.layers, selectedIds, mode, time, { width: p.width, height: p.height }) }));
+  const deleteKeys = () => {
+    if (!selectedKeys.length) return;
+    h.set((p) => {
+      let layers = p.layers;
+      for (const k of selectedKeys) layers = updateLayer(layers, k.layerId, (l) => removeKeyframe(l, k.prop, k.id));
+      return { ...p, layers };
+    });
+    setSelectedKeys([]);
+  };
+
   // ---------------- copy / cut / paste
   const insertPasted = (layers: Layer[], newFields: Project['fields'] = []) => {
     if (!layers.length) return;
     h.set((p) => {
-      const sel = selectedId ? findLayer(p.layers, selectedId) : undefined;
+      const sel = editor.selectedId ? findLayer(p.layers, editor.selectedId) : undefined;
       let next = p.layers;
       let above = sel && sel.type !== 'group' ? sel.id : null;
       for (const l of layers) {
@@ -167,7 +268,7 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
       }
       return { ...p, layers: next, fields: [...p.fields, ...newFields] };
     });
-    setSelectedId(layers[layers.length - 1]!.id);
+    setSelectedIds(layers.map((l) => l.id));
     toast('info', `Pasted ${layers.length === 1 ? `"${layers[0]!.name}"` : `${layers.length} layers`}${newFields.length ? ` (+ field${newFields.length > 1 ? 's' : ''} ${newFields.map((f) => f.key).join(', ')})` : ''}`);
   };
   const pasteText = (text: string): boolean => {
@@ -211,12 +312,13 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
   /** In-memory copy, used when the system clipboard is not available (e.g. the Paste button without permission). */
   const lastCopy = useRef<string | null>(null);
   const copySelected = (cut = false): string | null => {
-    if (!selected) return null;
-    const text = serializeLayers(project, [selected.id]);
+    const ids = roots();
+    if (!ids.length) return null;
+    const text = serializeLayers(project, ids);
     lastCopy.current = text;
     if (cut) {
-      h.set((p) => ({ ...p, layers: removeLayer(p.layers, selected.id) }));
-      setSelectedId(null);
+      h.set((p) => ({ ...p, layers: ids.reduce((ls, id) => removeLayer(ls, id), p.layers) }));
+      setSelectedIds([]);
     }
     return text;
   };
@@ -264,12 +366,6 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
     };
   });
 
-  const remove = () => {
-    if (!selected) return;
-    h.set((p) => ({ ...p, layers: removeLayer(p.layers, selected.id) }));
-    setSelectedId(null);
-  };
-
   const buildZip = async (rev: number) => {
     const r = await exportPackage({ ...project, revision: rev }, async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer()));
     if (r.errors.length) throw new Error(`invalid manifest: ${r.errors.map((e) => `${e.path} ${e.message}`).join('; ')}`);
@@ -309,24 +405,33 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 's') {
+      const k = e.key.toLowerCase();
+      if (mod && k === 's') {
         e.preventDefault();
         void api.saveProject(project).then(() => { setSaveState('saved'); toast('info', 'Saved'); });
         return;
       }
       if (isTyping(e.target)) return;
-      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? h.redo() : h.undo(); }
-      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); return h.redo(); }
-      if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); return duplicate(); }
-      if (!selected) return;
+      if (mod && k === 'z') { e.preventDefault(); return e.shiftKey ? h.redo() : h.undo(); }
+      if (mod && k === 'y') { e.preventDefault(); return h.redo(); }
+      if (mod && k === 'd') { e.preventDefault(); return duplicate(); }
+      if (mod && k === 'g') { e.preventDefault(); return e.shiftKey ? ungroup() : group(); }
+      if (mod && k === 'a') { e.preventDefault(); return setSelectedIds(project.layers.map((l) => l.id)); }
+      if (e.key === ' ' && !mod) { e.preventDefault(); return togglePlay.current?.(); }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedKeys.length) { e.preventDefault(); return deleteKeys(); }
+      if (e.key === 'Escape') { setSelectedKeys([]); return setSelectedIds([]); }
+      const ids = roots();
+      if (!ids.length) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); return remove(); }
-      if (e.key === 'Escape') return setSelectedId(null);
       const step = e.shiftKey ? 10 : 1;
       const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
       const m = moves[e.key];
-      if (m && !selected.locked) {
+      if (m) {
         e.preventDefault();
-        editor.updateLayer(selected.id, { x: selected.x + m[0], y: selected.y + m[1] }, `nudge-${selected.id}`);
+        h.set((p) => ({
+          ...p,
+          layers: ids.reduce((ls, id) => updateLayer(ls, id, (l) => (l.locked ? l : editProp(editProp(l, 'x', valueAt(l, 'x', time) + m[0], time), 'y', valueAt(l, 'y', time) + m[1], time))), p.layers),
+        }), `nudge-${ids.join()}`);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -354,15 +459,17 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
           <button className={leftTab === 'fields' ? 'on' : ''} onClick={() => setLeftTab('fields')}>Data fields ({project.fields.length})</button>
         </div>
         {leftTab === 'layers'
-          ? <LayersPanel editor={editor} onAdd={addLayer} onDuplicate={duplicate} onDelete={remove} onCopy={() => copyButton(false)} onCut={() => copyButton(true)} onPaste={() => void pasteButton()} onMove={(dir) => selected && h.set((p) => ({ ...p, layers: moveLayer(p.layers, selected.id, dir) }))} />
+          ? <LayersPanel editor={editor} onAdd={addLayer} onDuplicate={duplicate} onDelete={remove} onMove={move} onCopy={() => copyButton(false)} onCut={() => copyButton(true)} onPaste={() => void pasteButton()} onGroup={group} onUngroup={ungroup} />
           : <FieldsPanel editor={editor} />}
       </aside>
-      <Canvas editor={editor} />
+      <div className="center-col">
+        <Canvas editor={editor} controllerRef={preview} />
+        <Timeline editor={editor} preview={preview} toggleRef={togglePlay} />
+      </div>
       <aside className="right">
-        <PropertiesPanel editor={editor} layer={selected} />
+        <PropertiesPanel editor={editor} layer={selected} onAlign={align} onGroup={group} onUngroup={ungroup} />
       </aside>
       <Toasts />
     </div>
   );
 }
-

@@ -5,9 +5,9 @@ A broadcast graphics system built on the **EBU OGraf v1** specification
 Graphics are standard OGraf packages (manifest + Web Component), rendered in a transparent
 1920×1080 page that works as an input in **CasparCG** (HTML producer), **vMix** (Web Browser input) and **OBS** (Browser Source).
 
-> **Status: Phase 4** – server, renderer, example graphics, the **player**, the football **match data tool** and the
-> **graphics editor** MVP (layers, properties, data binding, in/out presets, publish to the library). The editor timeline
-> with keyframes and steps (5) and the Companion API (6) follow.
+> **Status: Phase 5** – server, renderer, example graphics, the **player**, the football **match data tool** and the
+> **graphics editor** (layers, data binding, a keyframe **timeline** with in/steps/out, multi-select, align and groups,
+> publish to the library). The Companion API and polish (6) follow.
 
 ## Quick start
 
@@ -40,7 +40,7 @@ Then open:
 | http://localhost:8080/api/v1/health | Internal API |
 
 See [docs/renderer-setup.md](docs/renderer-setup.md) for CasparCG, vMix and OBS settings, and
-[docs/phase4-testing.md](docs/phase4-testing.md) for a step-by-step test script.
+[docs/phase5-testing.md](docs/phase5-testing.md) for a step-by-step test script.
 
 ## Repository layout
 

@@ -59,10 +59,10 @@ describe('model', () => {
     expect(templateFields('{homeCode} {homeScore}–{awayScore:pad2} {clock:stoppage} {not valid} {}')).toEqual(['homeCode', 'homeScore', 'awayScore', 'clock']);
   });
 
-  it('computes animation durations', () => {
+  it('computes animation durations from the timeline', () => {
     const p = createProject();
-    expect(animDuration(p, 'in')).toBe(780); // subtitle: 280 delay + 500
-    expect(animDuration(p, 'out')).toBe(500);
+    expect(animDuration(p, 'in')).toBe(800);
+    expect(animDuration(p, 'out')).toBe(400);
   });
 });
 
@@ -95,7 +95,7 @@ describe('export / import', () => {
     const pkg = readPackage(r.files);
     expect(pkg.errors).toEqual([]);
     expect(pkg.graphics[0]).toMatchObject({ valid: true, manifestPath: 'score-card.ograf.json' });
-    expect(r.manifest).toMatchObject({ id: 'user.score-card', main: 'graphic.mjs', stepCount: 1, v_ogp_defaultLayer: 20, actionDurations: [{ type: 'playAction', duration: 780 }, { type: 'stopAction', duration: 500 }, { type: 'updateAction', duration: 0 }] });
+    expect(r.manifest).toMatchObject({ id: 'user.score-card', main: 'graphic.mjs', stepCount: 1, v_ogp_defaultLayer: 20, actionDurations: [{ type: 'playAction', duration: 800 }, { type: 'stopAction', duration: 400 }, { type: 'updateAction', duration: 0 }] });
     // image source rewritten to the bundled file, relative to the module
     const code = new TextDecoder().decode(r.files['graphic.mjs']);
     expect(code).toContain('"src":"assets/abc123.png"');

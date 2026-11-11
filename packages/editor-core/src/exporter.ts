@@ -3,6 +3,7 @@
  */
 import { validateManifest, type ValidationIssue } from '@ogp/ograf-core';
 import { animDuration, PROJECT_FORMAT, slugify, walk, type Layer, type Project } from './model.ts';
+import { migrateProject } from './timeline.ts';
 import { RUNTIME_SOURCE, PROJECT_PLACEHOLDER } from './runtime.ts';
 import { projectSchema } from './schema.ts';
 
@@ -48,6 +49,7 @@ export function manifestFileName(project: Project): string {
 export function generateManifest(project: Project): Record<string, unknown> {
   const inMs = animDuration(project, 'in');
   const outMs = animDuration(project, 'out');
+  const steps = project.timeline.steps;
   return {
     $schema: OGRAF_SCHEMA,
     id: project.graphicId,
@@ -58,10 +60,12 @@ export function generateManifest(project: Project): Record<string, unknown> {
     main: MODULE_FILE,
     supportsRealTime: true,
     supportsNonRealTime: false,
-    stepCount: 1,
+    stepCount: steps.length,
     schema: projectSchema(project),
     actionDurations: [
-      { type: 'playAction', duration: inMs },
+      steps.length > 1
+        ? { type: 'playAction', duration: inMs, steps: steps.map((s, i) => ({ step: i, duration: i === 0 ? s : s - steps[i - 1]! })) }
+        : { type: 'playAction', duration: inMs },
       { type: 'stopAction', duration: outMs },
       { type: 'updateAction', duration: 0 },
     ],
@@ -120,19 +124,7 @@ function collectSources(project: Project): string[] {
   return out;
 }
 
-/** Fills in defaults for projects from older/partial JSON. */
-export function normaliseProject(p: Partial<Project> & { layers?: Layer[] }): Project {
-  return {
-    format: PROJECT_FORMAT,
-    id: p.id ?? `p${Date.now().toString(36)}`,
-    name: p.name ?? 'Imported graphic',
-    graphicId: p.graphicId ?? `user.${slugify(p.name ?? 'graphic') || 'graphic'}`,
-    description: p.description ?? '',
-    width: p.width ?? 1920,
-    height: p.height ?? 1080,
-    defaultLayer: p.defaultLayer ?? 20,
-    fields: Array.isArray(p.fields) ? p.fields : [],
-    layers: Array.isArray(p.layers) ? p.layers : [],
-    revision: p.revision ?? 0,
-  };
+/** Fills in defaults for projects from older/partial JSON and migrates older formats. */
+export function normaliseProject(p: Partial<Project> | Record<string, unknown>): Project {
+  return migrateProject(p as unknown as Record<string, unknown>);
 }
