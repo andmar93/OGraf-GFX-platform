@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import type { ChannelState, GraphicRef } from './channel-state.ts';
+import type { Rundown, RundownSummary } from './rundown.ts';
 
 import { PROTOCOL_VERSION } from './constants.ts';
 
@@ -114,4 +115,7 @@ export type ServerMessage =
   | { type: 'channel.state'; channel: ChannelState }
   | { type: 'channel.removed'; channelId: string }
   | { type: 'data.changed'; path: string; value: unknown; serverTime: number }
-  | { type: 'graphics.changed' };
+  | { type: 'graphics.changed' }
+  | { type: 'rundown.changed'; rundown: Rundown }
+  | { type: 'rundown.removed'; rundownId: string }
+  | { type: 'rundowns.changed'; rundowns: RundownSummary[] };

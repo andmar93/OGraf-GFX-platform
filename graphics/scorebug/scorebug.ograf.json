@@ -4,25 +4,116 @@
   "version": "1.0.0",
   "name": "Scorebug – Football",
   "description": "Top-left scorebug with team codes, colours, score, match clock (computed locally from a server time anchor), period and added time.",
-  "author": { "name": "OGraf GFX Platform" },
+  "author": {
+    "name": "OGraf GFX Platform"
+  },
   "main": "graphic.mjs",
   "supportsRealTime": true,
   "supportsNonRealTime": false,
   "stepCount": 1,
+  "v_ogp_defaultLayer": 10,
   "schema": {
     "type": "object",
     "properties": {
-      "homeCode": { "type": "string", "label": "Home team code", "gddType": "single-line", "default": "HOM", "maxLength": 4, "order": 1 },
-      "awayCode": { "type": "string", "label": "Away team code", "gddType": "single-line", "default": "AWY", "maxLength": 4, "order": 2 },
-      "homeScore": { "type": "integer", "label": "Home score", "default": 0, "minimum": 0, "order": 3 },
-      "awayScore": { "type": "integer", "label": "Away score", "default": 0, "minimum": 0, "order": 4 },
-      "homeColor": { "type": "string", "label": "Home colour", "gddType": "color-rrggbb", "default": "#d81e3c", "pattern": "^#[0-9a-f]{6}$", "hidden": true, "order": 5 },
-      "awayColor": { "type": "string", "label": "Away colour", "gddType": "color-rrggbb", "default": "#1e6bd8", "pattern": "^#[0-9a-f]{6}$", "hidden": true, "order": 6 },
-      "homeLogo": { "type": "string", "label": "Home logo", "gddType": "file-path/image-path", "default": "", "hidden": true, "order": 7 },
-      "awayLogo": { "type": "string", "label": "Away logo", "gddType": "file-path/image-path", "default": "", "hidden": true, "order": 8 },
-      "period": { "type": "string", "label": "Period label", "gddType": "single-line", "default": "", "description": "Shown under the clock, e.g. HT, FT, ET, PENS. Empty hides it.", "hidden": true, "order": 9 },
-      "addedTime": { "type": "integer", "label": "Added time (min)", "default": 0, "minimum": 0, "description": "Announced stoppage time, shown as +N. 0 hides it.", "hidden": true, "order": 10 },
-      "showClock": { "type": "boolean", "label": "Show clock", "default": true, "hidden": true, "order": 11 },
+      "homeCode": {
+        "type": "string",
+        "label": "Home team code",
+        "gddType": "single-line",
+        "default": "HOM",
+        "maxLength": 4,
+        "order": 1,
+        "v_ogp_bind": "match.home.code"
+      },
+      "awayCode": {
+        "type": "string",
+        "label": "Away team code",
+        "gddType": "single-line",
+        "default": "AWY",
+        "maxLength": 4,
+        "order": 2,
+        "v_ogp_bind": "match.away.code"
+      },
+      "homeScore": {
+        "type": "integer",
+        "label": "Home score",
+        "default": 0,
+        "minimum": 0,
+        "order": 3,
+        "v_ogp_bind": "match.home.score"
+      },
+      "awayScore": {
+        "type": "integer",
+        "label": "Away score",
+        "default": 0,
+        "minimum": 0,
+        "order": 4,
+        "v_ogp_bind": "match.away.score"
+      },
+      "homeColor": {
+        "type": "string",
+        "label": "Home colour",
+        "gddType": "color-rrggbb",
+        "default": "#d81e3c",
+        "pattern": "^#[0-9a-f]{6}$",
+        "hidden": true,
+        "order": 5,
+        "v_ogp_bind": "match.home.color"
+      },
+      "awayColor": {
+        "type": "string",
+        "label": "Away colour",
+        "gddType": "color-rrggbb",
+        "default": "#1e6bd8",
+        "pattern": "^#[0-9a-f]{6}$",
+        "hidden": true,
+        "order": 6,
+        "v_ogp_bind": "match.away.color"
+      },
+      "homeLogo": {
+        "type": "string",
+        "label": "Home logo",
+        "gddType": "file-path/image-path",
+        "default": "",
+        "hidden": true,
+        "order": 7,
+        "v_ogp_bind": "match.home.logo"
+      },
+      "awayLogo": {
+        "type": "string",
+        "label": "Away logo",
+        "gddType": "file-path/image-path",
+        "default": "",
+        "hidden": true,
+        "order": 8,
+        "v_ogp_bind": "match.away.logo"
+      },
+      "period": {
+        "type": "string",
+        "label": "Period label",
+        "gddType": "single-line",
+        "default": "",
+        "description": "Shown under the clock, e.g. HT, FT, ET, PENS. Empty hides it.",
+        "hidden": true,
+        "order": 9,
+        "v_ogp_bind": "match.period"
+      },
+      "addedTime": {
+        "type": "integer",
+        "label": "Added time (min)",
+        "default": 0,
+        "minimum": 0,
+        "description": "Announced stoppage time, shown as +N. 0 hides it.",
+        "hidden": true,
+        "order": 10,
+        "v_ogp_bind": "match.addedTime"
+      },
+      "showClock": {
+        "type": "boolean",
+        "label": "Show clock",
+        "default": true,
+        "hidden": true,
+        "order": 11
+      },
       "clock": {
         "type": "object",
         "label": "Match clock",
@@ -30,15 +121,41 @@
         "hidden": true,
         "order": 12,
         "properties": {
-          "$type": { "type": "string", "default": "clock" },
-          "running": { "type": "boolean", "default": false },
-          "anchorServerMs": { "type": "number", "default": 0 },
-          "anchorLocalMs": { "type": "number" },
-          "elapsedAtAnchorMs": { "type": "number", "default": 0 },
-          "direction": { "type": "string", "enum": ["up", "down"], "default": "up" },
-          "limitMs": { "type": "number" },
-          "label": { "type": "string" }
-        }
+          "$type": {
+            "type": "string",
+            "default": "clock"
+          },
+          "running": {
+            "type": "boolean",
+            "default": false
+          },
+          "anchorServerMs": {
+            "type": "number",
+            "default": 0
+          },
+          "anchorLocalMs": {
+            "type": "number"
+          },
+          "elapsedAtAnchorMs": {
+            "type": "number",
+            "default": 0
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "default": "up"
+          },
+          "limitMs": {
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "v_ogp_bind": "match.clock"
       }
     }
   },
@@ -50,19 +167,58 @@
       "schema": {
         "type": "object",
         "properties": {
-          "team": { "type": "string", "label": "Team", "gddType": "select", "enum": ["home", "away"], "default": "home", "gddOptions": { "labels": { "home": "Home", "away": "Away" } } }
+          "team": {
+            "type": "string",
+            "label": "Team",
+            "gddType": "select",
+            "enum": [
+              "home",
+              "away"
+            ],
+            "default": "home",
+            "gddOptions": {
+              "labels": {
+                "home": "Home",
+                "away": "Away"
+              }
+            }
+          }
         },
-        "required": ["team"]
+        "required": [
+          "team"
+        ]
       }
     }
   ],
   "actionDurations": [
-    { "type": "playAction", "duration": 700 },
-    { "type": "stopAction", "duration": 450 },
-    { "type": "updateAction", "duration": -1 },
-    { "type": "customAction", "customActionId": "goal", "duration": 3200 }
+    {
+      "type": "playAction",
+      "duration": 700
+    },
+    {
+      "type": "stopAction",
+      "duration": 450
+    },
+    {
+      "type": "updateAction",
+      "duration": -1
+    },
+    {
+      "type": "customAction",
+      "customActionId": "goal",
+      "duration": 3200
+    }
   ],
   "renderRequirements": [
-    { "resolution": { "width": { "ideal": 1920 }, "height": { "ideal": 1080 } } }
+    {
+      "resolution": {
+        "width": {
+          "ideal": 1920
+        },
+        "height": {
+          "ideal": 1080
+        }
+      }
+    }
   ]
 }

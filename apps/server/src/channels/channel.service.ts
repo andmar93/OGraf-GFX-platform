@@ -11,7 +11,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { getDefaultData, resolveTargetStep, validateGraphicData, type ValidationIssue } from '@ogp/ograf-core';
 import {
   collectBindings, diffTopLevel, pathsOverlap, resolveBindings,
-  type ChannelInfo, type ChannelState, type CommandResult, type LayerState, type RendererCommand,
+  type ChannelInfo, type ChannelState, type CommandResult, type LayerSource, type LayerState, type RendererCommand,
 } from '@ogp/protocol';
 import type { Db } from '../db/client.ts';
 import { channelLayers, channels } from '../db/schema.ts';
@@ -152,7 +152,7 @@ export class ChannelService extends Emitter<{ state: ChannelState; removed: { ch
   }
 
   /** Loads (cues) a graphic on a layer, replacing whatever was there. */
-  async load(channelId: string, layer: number, graphicId: string, dataTemplate: unknown = {}): Promise<CommandOutcome> {
+  async load(channelId: string, layer: number, graphicId: string, dataTemplate: unknown = {}, opts: { source?: LayerSource } = {}): Promise<CommandOutcome> {
     this.require(channelId);
     if (!Number.isInteger(layer) || layer < 0 || layer > 999) throw badRequest('layer must be an integer between 0 and 999');
     if (!isObject(dataTemplate)) throw badRequest('data must be an object');
@@ -172,6 +172,7 @@ export class ChannelService extends Emitter<{ state: ChannelState; removed: { ch
       currentStep: null,
       updatedAt: Date.now(),
     };
+    if (opts.source) state.source = opts.source;
     this.require(channelId).layers.set(layer, state);
     this.persistLayer(channelId, state);
     this.publish(channelId);
@@ -187,8 +188,11 @@ export class ChannelService extends Emitter<{ state: ChannelState; removed: { ch
     const l = this.layerOrThrow(channelId, layer, graphicInstanceId);
     const stepCount = l.graphic.stepCount;
     const target = resolveTargetStep(l.currentStep, stepCount, params);
+    const wasPlaying = l.status === 'playing';
     l.currentStep = target ?? null;
     l.status = target === undefined && stepCount !== 0 ? 'stopped' : 'playing';
+    if (l.status === 'playing' && !wasPlaying) l.onAirSince = Date.now();
+    if (l.status !== 'playing') delete l.onAirSince;
     l.updatedAt = Date.now();
     this.persistLayer(channelId, l);
     this.publish(channelId);
@@ -211,6 +215,7 @@ export class ChannelService extends Emitter<{ state: ChannelState; removed: { ch
     const l = this.layerOrThrow(channelId, layer, graphicInstanceId);
     l.status = 'stopped';
     l.currentStep = null;
+    delete l.onAirSince;
     l.updatedAt = Date.now();
     this.persistLayer(channelId, l);
     this.publish(channelId);
@@ -266,6 +271,14 @@ export class ChannelService extends Emitter<{ state: ChannelState; removed: { ch
     if (targets.length) this.publish(channelId);
     await Promise.all(targets.map((l) => this.gateway.dispatch(channelId, { action: 'clear', layer: l.layer, graphicInstanceId: l.graphicInstanceId }, this.opts.timeouts.actionMs)));
     return targets.map((l) => ({ layer: l.layer, graphicInstanceId: l.graphicInstanceId }));
+  }
+
+  /** Takes every playing layer of a channel out (stopAction). */
+  async stopAll(channelId: string, params: { skipAnimation?: boolean } = {}): Promise<{ layer: number; graphicInstanceId: string }[]> {
+    const ch = this.require(channelId);
+    const playing = [...ch.layers.values()].filter((l) => l.status === 'playing');
+    await Promise.all(playing.map((l) => this.stop(channelId, l.layer, params)));
+    return playing.map((l) => ({ layer: l.layer, graphicInstanceId: l.graphicInstanceId }));
   }
 
   reloadRenderers(channelId: string): number {

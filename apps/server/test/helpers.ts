@@ -15,6 +15,7 @@ export async function createTestServer(opts: { seed?: boolean; timeouts?: { load
     databaseFile: ':memory:',
     migrationsDir: resolve(here, '..', 'drizzle'),
     rendererDist: resolve(here, '..', '..', 'renderer', 'dist'),
+    playerDist: resolve(here, '..', '..', 'player', 'dist'),
     publicDir: resolve(here, '..', 'public'),
     seedGraphicsDir: opts.seed === false ? undefined : resolve(here, '..', '..', '..', 'graphics'),
     seedMode: 'once',

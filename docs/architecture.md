@@ -22,6 +22,7 @@ Everything goes through the server. Clients never talk to renderers directly.
 | `data/data-hub.ts` | The data tree (`match.home.score`, …), persisted per top-level key. Clock helper. |
 | `control/ograf-server-api.ts` | OGraf Server API adapter at `/ograf/v1`. |
 | `control/internal-api.ts` | Our API at `/api/v1`: uploads, cue/take/next/out, data, clocks. |
+| `rundowns/rundown.service.ts` + `control/rundown-api.ts` | Rundowns and items (SQLite), item control (cue/take/next/out/update) on top of the channel service, server-side cursor, out-then-in transitions, auto-out timers. |
 
 ### Channel model
 
@@ -62,6 +63,19 @@ Graphic data may contain bindings:
 When a data path changes, every layer with a binding that overlaps the changed path is re-resolved.
 Only the top-level keys that actually changed are sent in one `updateAction` per layer; changes within
 the same tick are coalesced. Graphics stay plain OGraf components.
+
+### Rundowns
+
+Items are played through the channel service, so there is one source of truth for what is on air. A layer loaded
+from an item carries `source: { rundownId, itemId }`; clients derive item status (cued / on air / out) from the
+channel state. The rundown's `cursorItemId` (the selected / "next" item) lives on the server so several operators
+and automation see the same thing.
+
+## Player (`apps/player`)
+
+React + Vite, served at `/player`. One controller WebSocket feeds a small store (channels, data, rundowns);
+all changes go through the REST API. The PVW preview loads the selected item into the renderer's `layer.html`
+(same isolation as on air). See [player.md](player.md).
 
 ## Renderer (`apps/renderer`)
 

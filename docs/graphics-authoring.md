@@ -47,6 +47,20 @@ Update the text in a `requestAnimationFrame` loop, and only when the displayed s
 `direction: "down"` counts down from `limitMs`. The example scorebug freezes an up-clock at `limitMs`
 (e.g. 45:00) and shows the stoppage time as `+M:SS`.
 
+## Hints for the player (optional, vendor fields)
+
+```json
+{
+  "v_ogp_defaultLayer": 10,
+  "schema": { "type": "object", "properties": {
+    "homeScore": { "type": "integer", "default": 0, "v_ogp_bind": "match.home.score" }
+  } }
+}
+```
+
+- `v_ogp_defaultLayer` (manifest): layer for new rundown items (default 20).
+- `v_ogp_bind` (schema property): new rundown items bind this field to the data path (the schema default becomes the fallback).
+
 ## Data bindings
 
 In the data you send with load/update, any value can be a binding to a data path:

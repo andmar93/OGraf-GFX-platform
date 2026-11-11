@@ -4,6 +4,7 @@ import type { ChannelService } from './channels/channel.service.ts';
 import type { DataHub } from './data/data-hub.ts';
 import type { GraphicsService } from './graphics/graphics.service.ts';
 import type { Gateway } from './renderers/gateway.ts';
+import type { RundownService } from './rundowns/rundown.service.ts';
 
 export interface Services {
   config: ServerConfig;
@@ -12,4 +13,5 @@ export interface Services {
   hub: DataHub;
   gateway: Gateway;
   channels: ChannelService;
+  rundowns: RundownService;
 }

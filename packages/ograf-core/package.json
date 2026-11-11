@@ -10,7 +10,8 @@
     "./steps": "./src/steps.ts",
     "./validate": "./src/validate/index.ts",
     "./package": "./src/package/read-package.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./gdd": "./src/gdd/defaults.ts"
   },
   "scripts": {
     "test": "vitest run",

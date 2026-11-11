@@ -108,6 +108,7 @@ export const internalApi: ControlAdapter = {
       return { ok: true };
     });
     app.post<{ Params: { channelId: string } }>(`${p}/channels/:channelId/clear`, async (req) => ({ cleared: await s.channels.clear(req.params.channelId, {}) }));
+    app.post<{ Params: { channelId: string }; Body: Body }>(`${p}/channels/:channelId/out-all`, async (req) => ({ stopped: await s.channels.stopAll(req.params.channelId, skipOf(req.body)) }));
     app.post<{ Params: { channelId: string } }>(`${p}/channels/:channelId/reload-renderers`, async (req) => ({ renderers: s.channels.reloadRenderers(req.params.channelId) }));
 
     // ---------- layer control ----------

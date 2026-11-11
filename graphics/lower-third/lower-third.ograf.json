@@ -4,27 +4,88 @@
   "version": "1.0.0",
   "name": "Lower third – Name & title",
   "description": "Two-line lower third (name and title) with accent bar. Neutral league-style design, 1920x1080.",
-  "author": { "name": "OGraf GFX Platform" },
+  "author": {
+    "name": "OGraf GFX Platform"
+  },
   "main": "graphic.mjs",
   "supportsRealTime": true,
   "supportsNonRealTime": false,
   "stepCount": 1,
+  "v_ogp_defaultLayer": 20,
   "schema": {
     "type": "object",
     "properties": {
-      "name": { "type": "string", "label": "Name", "gddType": "single-line", "default": "Anna Lindqvist", "maxLength": 60, "order": 1 },
-      "title": { "type": "string", "label": "Title", "gddType": "single-line", "default": "Head coach", "maxLength": 80, "order": 2 },
-      "accentColor": { "type": "string", "label": "Accent colour", "gddType": "color-rrggbb", "default": "#00d1ff", "pattern": "^#[0-9a-f]{6}$", "hidden": true, "order": 3 },
-      "align": { "type": "string", "label": "Position", "gddType": "select", "enum": ["left", "center", "right"], "default": "left", "hidden": true, "order": 4,
-        "gddOptions": { "labels": { "left": "Left", "center": "Centre", "right": "Right" } } }
+      "name": {
+        "type": "string",
+        "label": "Name",
+        "gddType": "single-line",
+        "default": "Anna Lindqvist",
+        "maxLength": 60,
+        "order": 1
+      },
+      "title": {
+        "type": "string",
+        "label": "Title",
+        "gddType": "single-line",
+        "default": "Head coach",
+        "maxLength": 80,
+        "order": 2
+      },
+      "accentColor": {
+        "type": "string",
+        "label": "Accent colour",
+        "gddType": "color-rrggbb",
+        "default": "#00d1ff",
+        "pattern": "^#[0-9a-f]{6}$",
+        "hidden": true,
+        "order": 3
+      },
+      "align": {
+        "type": "string",
+        "label": "Position",
+        "gddType": "select",
+        "enum": [
+          "left",
+          "center",
+          "right"
+        ],
+        "default": "left",
+        "hidden": true,
+        "order": 4,
+        "gddOptions": {
+          "labels": {
+            "left": "Left",
+            "center": "Centre",
+            "right": "Right"
+          }
+        }
+      }
     }
   },
   "actionDurations": [
-    { "type": "playAction", "duration": 750 },
-    { "type": "stopAction", "duration": 400 },
-    { "type": "updateAction", "duration": 350 }
+    {
+      "type": "playAction",
+      "duration": 750
+    },
+    {
+      "type": "stopAction",
+      "duration": 400
+    },
+    {
+      "type": "updateAction",
+      "duration": 350
+    }
   ],
   "renderRequirements": [
-    { "resolution": { "width": { "ideal": 1920 }, "height": { "ideal": 1080 } } }
+    {
+      "resolution": {
+        "width": {
+          "ideal": 1920
+        },
+        "height": {
+          "ideal": 1080
+        }
+      }
+    }
   ]
 }

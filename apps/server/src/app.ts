@@ -12,6 +12,8 @@ import { GraphicsService } from './graphics/graphics.service.ts';
 import { DataHub } from './data/data-hub.ts';
 import { Gateway } from './renderers/gateway.ts';
 import { ChannelService } from './channels/channel.service.ts';
+import { RundownService } from './rundowns/rundown.service.ts';
+import { rundownApi } from './control/rundown-api.ts';
 import { ografServerApi } from './control/ograf-server-api.ts';
 import { internalApi } from './control/internal-api.ts';
 import type { ControlAdapter } from './control/control-adapter.ts';
@@ -38,12 +40,16 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   let channels!: ChannelService;
   const gateway = new Gateway({ getSnapshot: (id) => channels.getState(id), listChannels: () => channels.list() });
   channels = new ChannelService(db, graphics, hub, gateway, { defaultChannel: config.defaultChannel, timeouts: config.timeouts });
-  const services: Services = { config, db, graphics, hub, gateway, channels };
+  const rundowns = new RundownService(db, channels, graphics);
+  const services: Services = { config, db, graphics, hub, gateway, channels, rundowns };
 
   channels.on('state', (st) => gateway.broadcastChannelState(st));
   channels.on('removed', ({ channelId }) => gateway.broadcastToControllers({ type: 'channel.removed', channelId }));
   hub.on('change', ({ path, value }) => gateway.broadcastDataChange(path, value));
   graphics.on('changed', () => gateway.broadcastToControllers({ type: 'graphics.changed' }));
+  rundowns.on('changed', (rundown) => gateway.broadcastToControllers({ type: 'rundown.changed', rundown }));
+  rundowns.on('removed', ({ rundownId }) => gateway.broadcastToControllers({ type: 'rundown.removed', rundownId }));
+  rundowns.on('list', (list) => gateway.broadcastToControllers({ type: 'rundowns.changed', rundowns: list }));
 
   if (config.seedGraphicsDir && (config.seedMode === 'always' || (config.seedMode === 'once' && !graphics.hasAnyPackage()))) {
     await graphics.seedFrom(config.seedGraphicsDir, (msg, err) => (err ? app.log.warn({ err }, msg) : app.log.info(msg)));
@@ -68,7 +74,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   });
 
   // ---------- APIs ----------
-  const adapters: ControlAdapter[] = [ografServerApi, internalApi];
+  const adapters: ControlAdapter[] = [ografServerApi, internalApi, rundownApi];
   for (const a of adapters) await a.register(app, services);
 
   app.get('/ws', { websocket: true }, (socket, req) => gateway.accept(socket, req.headers['user-agent']));
@@ -98,12 +104,20 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
     await app.register(fastifyStatic, { root: config.publicDir, prefix: '/public/', decorateReply: false, index: false });
     app.get('/dev', (_req, reply) => reply.header('Cache-Control', 'no-cache').sendFile('dev.html', config.publicDir));
   }
-  app.get('/', (_req, reply) => reply.redirect('/dev'));
+  if (existsSync(join(config.playerDist, 'index.html'))) {
+    await app.register(fastifyStatic, { root: config.playerDist, prefix: '/player/', decorateReply: false, index: ['index.html'], cacheControl: false, setHeaders: (res) => res.header('Cache-Control', 'no-cache') });
+    app.get('/player', (_req, reply) => reply.redirect('/player/'));
+    app.get('/', (_req, reply) => reply.redirect('/player/'));
+  } else {
+    app.log.warn(`player build not found at ${config.playerDist} – run "pnpm --filter @ogp/player build"`);
+    app.get('/', (_req, reply) => reply.redirect('/dev'));
+  }
 
   return {
     app,
     services,
     close: async () => {
+      rundowns.close();
       gateway.close();
       await app.close();
       closeDb();

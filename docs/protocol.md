@@ -46,6 +46,7 @@ When no renderer is connected the command is stored in state and answered with `
 | `GET /api/v1/channels` / `POST` `{ name, id?, description?, frameRate? }` | |
 | `GET/PATCH/DELETE /api/v1/channels/{ch}` | |
 | `POST /api/v1/channels/{ch}/clear` | Clear all layers |
+| `POST /api/v1/channels/{ch}/out-all` | `stopAction` on every playing layer |
 | `POST /api/v1/channels/{ch}/reload-renderers` | Ask renderer pages to reload |
 | `GET /api/v1/channels/{ch}/layers/{n}` | Layer state |
 | `POST …/layers/{n}/load` (alias `cue`) | `{ graphicId, data? }` |
@@ -56,6 +57,24 @@ When no renderer is connected the command is stored in state and answered with `
 | `POST …/layers/{n}/custom/{actionId}` | `{ payload?, skipAnimation? }` |
 
 Layer commands return `{ statusCode, statusMessage?, result?, currentStep?, graphicInstanceId, rendererCount, dataWarnings? }`.
+
+### Rundowns
+| | |
+|---|---|
+| `GET /api/v1/rundowns` / `POST { name }` | List (summaries) / create |
+| `GET/PATCH/DELETE /api/v1/rundowns/{id}` | `PATCH { name?, cursorItemId? }` |
+| `POST /api/v1/rundowns/{id}/duplicate` | `{ name? }` |
+| `POST /api/v1/rundowns/{id}/reorder` | `{ itemIds: [...] }` (all items, new order) |
+| `POST /api/v1/rundowns/{id}/take` | Take the cursor item → `{ itemId, statusCode, … }` |
+| `POST /api/v1/rundowns/{id}/items` | `{ graphicId, name?, channelId?, layer?, data?, durationMs?, afterItemId? }`. Defaults: first channel, manifest `v_ogp_defaultLayer` (else 20), schema defaults with `v_ogp_bind` hints as bindings. |
+| `GET/PATCH/DELETE /api/v1/rundowns/{id}/items/{itemId}` | `PATCH` any of the fields above |
+| `POST …/items/{itemId}/duplicate` | Inserted after the item |
+| `POST …/items/{itemId}/{cue\|take\|next\|prev\|out\|update\|clear}` | `{ skipAnimation?, advance? (take, default true), transition? ('out-in' default \| 'cut') }` → command outcome + `cursorItemId`. `next/prev/out/update/clear` return 409 when the item is not loaded. |
+| `POST …/items/{itemId}/custom/{actionId}` | `{ payload }` |
+
+Take semantics: not loaded → (animate out what is on the layer, unless `transition: 'cut'`) load + play step 0;
+cued → bring data up to date, play step 0; on air → next step for multi-step graphics, otherwise no-op.
+Items with `durationMs` are taken out automatically after that time.
 
 ### Data hub
 | | |
@@ -81,4 +100,8 @@ Client → server:
 
 Server → client: `welcome`, `error`, `time.pong`, `renderer.snapshot`, `renderer.command`
 (`{ reqId, command: { action, layer, graphicInstanceId, graphic?, params } }`), `renderer.reload`,
-`channel.state`, `channel.removed`, `data.changed`, `graphics.changed`.
+`channel.state`, `channel.removed`, `data.changed`, `graphics.changed`, `rundown.changed` (full rundown),
+`rundown.removed`, `rundowns.changed` (summaries).
+
+Layer state includes `source: { rundownId, itemId }` when the instance was loaded from a rundown item, and
+`onAirSince` (server time) while playing.

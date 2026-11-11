@@ -10,6 +10,8 @@ export interface ServerConfig {
   migrationsDir: string;
   /** Built renderer app (apps/renderer/dist). */
   rendererDist: string;
+  /** Built player app (apps/player/dist). */
+  playerDist: string;
   /** Static files for the /dev test bench. */
   publicDir: string;
   /** Folder with example graphics packages (one sub-folder per package). */
@@ -35,6 +37,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     databaseFile: env.DATABASE_FILE ?? resolve(dataDir, 'ogp.sqlite'),
     migrationsDir: resolve(env.MIGRATIONS_DIR ?? 'drizzle'),
     rendererDist: resolve(env.RENDERER_DIST ?? '../renderer/dist'),
+    playerDist: resolve(env.PLAYER_DIST ?? '../player/dist'),
     publicDir: resolve(env.PUBLIC_DIR ?? 'public'),
     seedGraphicsDir: env.SEED_GRAPHICS_DIR === '' ? undefined : resolve(env.SEED_GRAPHICS_DIR ?? '../../graphics'),
     seedMode: ['once', 'always', 'never'].includes(seedMode) ? seedMode : 'once',

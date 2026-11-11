@@ -58,3 +58,30 @@ export const dataRoots = sqliteTable('data_roots', {
   value: text('value', { mode: 'json' }).notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+
+export const rundowns = sqliteTable('rundowns', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  cursorItemId: text('cursor_item_id'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const rundownItems = sqliteTable(
+  'rundown_items',
+  {
+    id: text('id').primaryKey(),
+    rundownId: text('rundown_id').notNull().references(() => rundowns.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    name: text('name').notNull().default(''),
+    graphicId: text('graphic_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    layer: integer('layer').notNull(),
+    data: text('data', { mode: 'json' }).notNull(),
+    durationMs: integer('duration_ms'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('rundown_items_rundown_idx').on(t.rundownId, t.position)],
+);

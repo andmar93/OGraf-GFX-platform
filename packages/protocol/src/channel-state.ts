@@ -3,6 +3,8 @@
  * Naming follows the OGraf Server API: a Channel is a "Renderer", a layer is a "RenderTarget"
  * (identified by { layer: number }), and a loaded graphic is a "GraphicInstance".
  */
+import type { LayerSource } from './rundown.ts';
+
 export type LayerStatus =
   /** load() done (cued), nothing visible */
   | 'loaded'
@@ -35,6 +37,10 @@ export interface LayerState {
   status: LayerStatus;
   /** null = start/end state */
   currentStep: number | null;
+  /** Set when the instance was loaded from a rundown item. */
+  source?: LayerSource;
+  /** Server time when the instance went on air (last play from the start state). */
+  onAirSince?: number;
   /** Last error reported for this instance (graphic threw, timed out, ...). */
   error?: { message: string; statusCode?: number; at: number };
   updatedAt: number;
