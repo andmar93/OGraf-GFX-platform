@@ -6,7 +6,7 @@ RUN corepack enable
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @ogp/renderer --filter @ogp/player --filter @ogp/server build
+RUN pnpm --filter @ogp/renderer --filter @ogp/player --filter @ogp/data --filter @ogp/server build
 # production node_modules for the server (workspace packages are bundled into dist/main.js)
 RUN pnpm --filter @ogp/server deploy --prod --legacy /out
 
@@ -18,6 +18,7 @@ ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/dist/drizzle \
     RENDERER_DIST=/app/renderer \
     PLAYER_DIST=/app/player \
+    DATA_APP_DIST=/app/data-app \
     PUBLIC_DIR=/app/public \
     SEED_GRAPHICS_DIR=/app/seed-graphics \
     SEED_MODE=once
@@ -27,6 +28,7 @@ COPY --from=build /app/apps/server/dist ./dist
 COPY --from=build /app/apps/server/public ./public
 COPY --from=build /app/apps/renderer/dist ./renderer
 COPY --from=build /app/apps/player/dist ./player
+COPY --from=build /app/apps/data/dist ./data-app
 COPY --from=build /app/graphics ./seed-graphics
 VOLUME /data
 EXPOSE 8080

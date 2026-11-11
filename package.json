@@ -7,7 +7,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "pnpm --filter @ogp/renderer --filter @ogp/player build && concurrently -k -n server,renderer,player -c blue,magenta,green \"pnpm --filter @ogp/server dev\" \"pnpm --filter @ogp/renderer dev\" \"pnpm --filter @ogp/player dev\"",
+    "dev": "pnpm --filter @ogp/renderer --filter @ogp/player --filter @ogp/data build && concurrently -k -n server,renderer,player,data -c blue,magenta,green,yellow \"pnpm --filter @ogp/server dev\" \"pnpm --filter @ogp/renderer dev\" \"pnpm --filter @ogp/player dev\" \"pnpm --filter @ogp/data dev\"",
     "build": "pnpm -r build",
     "start": "pnpm --filter @ogp/server start",
     "test": "pnpm -r test",

@@ -14,6 +14,9 @@ import { Gateway } from './renderers/gateway.ts';
 import { ChannelService } from './channels/channel.service.ts';
 import { RundownService } from './rundowns/rundown.service.ts';
 import { rundownApi } from './control/rundown-api.ts';
+import { MatchService } from './matches/match.service.ts';
+import { matchApi } from './control/match-api.ts';
+import { registerAssets } from './assets/assets.ts';
 import { ografServerApi } from './control/ograf-server-api.ts';
 import { internalApi } from './control/internal-api.ts';
 import type { ControlAdapter } from './control/control-adapter.ts';
@@ -41,7 +44,8 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   const gateway = new Gateway({ getSnapshot: (id) => channels.getState(id), listChannels: () => channels.list() });
   channels = new ChannelService(db, graphics, hub, gateway, { defaultChannel: config.defaultChannel, timeouts: config.timeouts });
   const rundowns = new RundownService(db, channels, graphics);
-  const services: Services = { config, db, graphics, hub, gateway, channels, rundowns };
+  const matches = new MatchService(db, hub);
+  const services: Services = { config, db, graphics, hub, gateway, channels, rundowns, matches };
 
   channels.on('state', (st) => gateway.broadcastChannelState(st));
   channels.on('removed', ({ channelId }) => gateway.broadcastToControllers({ type: 'channel.removed', channelId }));
@@ -50,6 +54,9 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   rundowns.on('changed', (rundown) => gateway.broadcastToControllers({ type: 'rundown.changed', rundown }));
   rundowns.on('removed', ({ rundownId }) => gateway.broadcastToControllers({ type: 'rundown.removed', rundownId }));
   rundowns.on('list', (list) => gateway.broadcastToControllers({ type: 'rundowns.changed', rundowns: list }));
+  matches.on('changed', (match) => gateway.broadcastToControllers({ type: 'match.changed', match: match as unknown as Record<string, unknown> & { id: string } }));
+  matches.on('removed', ({ matchId }) => gateway.broadcastToControllers({ type: 'match.removed', matchId }));
+  matches.on('list', (list) => gateway.broadcastToControllers({ type: 'matches.changed', matches: list }));
 
   if (config.seedGraphicsDir && (config.seedMode === 'always' || (config.seedMode === 'once' && !graphics.hasAnyPackage()))) {
     await graphics.seedFrom(config.seedGraphicsDir, (msg, err) => (err ? app.log.warn({ err }, msg) : app.log.info(msg)));
@@ -74,8 +81,10 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   });
 
   // ---------- APIs ----------
-  const adapters: ControlAdapter[] = [ografServerApi, internalApi, rundownApi];
+  const adapters: ControlAdapter[] = [ografServerApi, internalApi, rundownApi, matchApi];
   for (const a of adapters) await a.register(app, services);
+
+  await registerAssets(app, config.dataDir);
 
   app.get('/ws', { websocket: true }, (socket, req) => gateway.accept(socket, req.headers['user-agent']));
 
@@ -93,7 +102,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   });
   // Built frontends: routes are always registered and files are looked up per request. In development the
   // watch builds empty and rewrite their dist folders while the server runs, so a check at startup could miss them.
-  for (const dir of [config.rendererDist, config.playerDist]) mkdirSync(dir, { recursive: true });
+  for (const dir of [config.rendererDist, config.playerDist, config.dataAppDist]) mkdirSync(dir, { recursive: true });
   const page = (reply: FastifyReply, dir: string, what: string) => {
     reply.header('Cache-Control', 'no-store');
     if (existsSync(join(dir, 'index.html'))) return reply.sendFile('index.html', dir);
@@ -108,6 +117,10 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   app.get('/player', (_req, reply) => reply.redirect('/player/'));
   app.get('/', (_req, reply) => reply.redirect('/player/'));
 
+  await app.register(fastifyStatic, { root: config.dataAppDist, prefix: '/data/', decorateReply: false, index: false, cacheControl: false, setHeaders: noCache });
+  app.get('/data/', (_req, reply) => page(reply, config.dataAppDist, 'match data tool'));
+  app.get('/data', (_req, reply) => reply.redirect('/data/'));
+
   if (existsSync(join(config.publicDir, 'dev.html'))) {
     await app.register(fastifyStatic, { root: config.publicDir, prefix: '/public/', decorateReply: false, index: false });
     app.get('/dev', (_req, reply) => reply.header('Cache-Control', 'no-cache').sendFile('dev.html', config.publicDir));
@@ -115,6 +128,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   app.addHook('onReady', async () => {
     if (!existsSync(join(config.rendererDist, 'index.html'))) app.log.warn(`renderer build not found in ${config.rendererDist} – run "pnpm build" (or "pnpm dev")`);
     if (!existsSync(join(config.playerDist, 'index.html'))) app.log.warn(`player build not found in ${config.playerDist} – run "pnpm build" (or "pnpm dev")`);
+    if (!existsSync(join(config.dataAppDist, 'index.html'))) app.log.warn(`data tool build not found in ${config.dataAppDist} – run "pnpm build" (or "pnpm dev")`);
   });
 
   return {

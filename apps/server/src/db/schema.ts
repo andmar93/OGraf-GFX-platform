@@ -85,3 +85,33 @@ export const rundownItems = sqliteTable(
   },
   (t) => [index('rundown_items_rundown_idx').on(t.rundownId, t.position)],
 );
+
+/** A match: setup (teams, settings) as JSON; its state is derived from the events. */
+export const matches = sqliteTable('matches', {
+  id: text('id').primaryKey(),
+  sport: text('sport').notNull(),
+  name: text('name').notNull(),
+  setup: text('setup', { mode: 'json' }).notNull(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const matchEvents = sqliteTable(
+  'match_events',
+  {
+    id: text('id').primaryKey(),
+    matchId: text('match_id').notNull().references(() => matches.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    type: text('type').notNull(),
+    team: text('team'),
+    data: text('data', { mode: 'json' }).notNull(),
+    /** server time of the event (drives the clock) */
+    at: integer('at').notNull(),
+    /** set when undone/deleted; redo restores the most recently deleted */
+    deletedAt: integer('deleted_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('match_events_match_idx').on(t.matchId, t.seq)],
+);

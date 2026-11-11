@@ -20,7 +20,7 @@ describe('graphics', () => {
 
   it('seeds the example graphics', async () => {
     const r = await api<{ graphics: { id: string }[] }>(s.baseUrl, 'GET', '/api/v1/graphics');
-    expect(r.body.graphics.map((g) => g.id).sort()).toEqual(['ogp.lineup', 'ogp.lower-third', 'ogp.scorebug']);
+    expect(r.body.graphics.map((g) => g.id).sort()).toEqual(['ogp.event-banner', 'ogp.lineup', 'ogp.lower-third', 'ogp.scorebug']);
   });
 
   it('serves graphic files from the package store', async () => {

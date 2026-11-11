@@ -76,6 +76,30 @@ Take semantics: not loaded → (animate out what is on the layer, unless `transi
 cued → bring data up to date, play step 0; on air → next step for multi-step graphics, otherwise no-op.
 Items with `durationMs` are taken out automatically after that time.
 
+### Matches (data tool)
+| | |
+|---|---|
+| `GET /api/v1/sports` | Available sports, default settings and event types |
+| `GET /api/v1/matches` / `POST { name?, sport?, home?, away?, settings? }` | List / create |
+| `GET /api/v1/matches/active` | The active match or `null` |
+| `GET/PATCH/DELETE /api/v1/matches/{id}` | `PATCH { name?, home?, away?, settings? }` (teams are normalised; an automatic name follows the team names) |
+| `POST /api/v1/matches/{id}/activate` · `POST /api/v1/matches/deactivate` | The active match is published as `match.*` |
+| `POST /api/v1/matches/{id}/events` | `{ type, team?, data? }` → 201, or 422 with the reason when the event is not allowed now |
+| `PATCH/DELETE /api/v1/matches/{id}/events/{eventId}` | Edit (`{ team?, data? }`, `null` removes a data key, re-validated) / delete |
+| `POST /api/v1/matches/{id}/undo` · `/redo` | Undo removes the last event; redo restores it (until a new event is added) |
+
+A match response contains the setup, `events`, `published` (exactly what goes to `match.*`), `actions`
+(next phase transitions) and `canUndo` / `canRedo`. Football event types: `period.start/end {period: H1|H2|ET1|ET2|PEN, first?}`,
+`match.end`, `clock.start`, `clock.stop`, `clock.set {elapsedMs}`, `clock.adjust {deltaMs}`, `added_time {minutes}`,
+`goal {kind: normal|penalty|own_goal, playerId?, assistId?, minute?}`, `card {card: yellow|red, playerId?}`,
+`substitution {outId, inId}`, `var {reason, decision}`, `corner`, `shot {onTarget?}`, `foul`, `offside`,
+`shootout.kick {scored, playerId?}`.
+
+### Assets
+| | |
+|---|---|
+| `POST /api/v1/assets` | Image upload (multipart, field `file`; PNG, JPG, GIF, WebP, SVG; max 10 MB) → `{ url: "/assets/<hash>.<ext>" }` |
+
 ### Data hub
 | | |
 |---|---|
@@ -101,7 +125,7 @@ Client → server:
 Server → client: `welcome`, `error`, `time.pong`, `renderer.snapshot`, `renderer.command`
 (`{ reqId, command: { action, layer, graphicInstanceId, graphic?, params } }`), `renderer.reload`,
 `channel.state`, `channel.removed`, `data.changed`, `graphics.changed`, `rundown.changed` (full rundown),
-`rundown.removed`, `rundowns.changed` (summaries).
+`rundown.removed`, `rundowns.changed` (summaries), `match.changed` (full match), `match.removed`, `matches.changed`.
 
 Layer state includes `source: { rundownId, itemId }` when the instance was loaded from a rundown item, and
 `onAirSince` (server time) while playing.

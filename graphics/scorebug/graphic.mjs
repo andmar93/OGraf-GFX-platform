@@ -46,7 +46,7 @@ const CSS = `
 .clockbox.hidden { display: none; }
 .main.noclock { border-radius: 4px; }
 .tags { position: absolute; left: 100%; top: 0; display: flex; height: 52px; }
-.tag { display: none; align-items: center; padding: 0 14px; margin-left: 6px; font-weight: 800; font-size: 22px; border-radius: 4px; }
+.tag { display: none; align-items: center; padding: 0 14px; margin-left: 6px; font-weight: 800; font-size: 22px; border-radius: 4px; white-space: nowrap; }
 .tag.on { display: flex; }
 .period { background: #f4f6fb; color: #0b1230; letter-spacing: .08em; }
 .added { background: #0b1230; color: #00d1ff; font-variant-numeric: tabular-nums; }

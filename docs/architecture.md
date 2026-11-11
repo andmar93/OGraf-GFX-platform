@@ -71,11 +71,30 @@ from an item carries `source: { rundownId, itemId }`; clients derive item status
 channel state. The rundown's `cursorItemId` (the selected / "next" item) lives on the server so several operators
 and automation see the same thing.
 
+### Matches and the sports model
+
+`packages/sports-model` is sport-agnostic: a match is its setup (teams, settings) plus an append-only event list.
+The state is never stored – it is derived by replaying the events through the sport's plugin (`SportPlugin`:
+`initialState`, `validate`, `reduce`, `publish`, `phaseActions`). Undo and edits are exact (replay without/with the
+changed event) and the result is deterministic. Football is the first plugin (`sports/football`: periods, extra time,
+event-driven clock, goals incl. own goals/penalties, cards with automatic second yellow, substitutions, VAR, stats and an
+IFAB-style shootout). Hockey, handball, floorball … are new plugins registered with `registerSport()`; the core, the
+server and the match API do not change.
+
+The server (`matches/match.service.ts`) stores matches and events in SQLite, validates new/edited events with the
+plugin and publishes the active match to the data hub as `match`. From there the usual binding mechanism updates the
+graphics on air with partial `updateAction`s. The clock is a published anchor derived from the clock events – never ticks.
+
 ## Player (`apps/player`)
 
 React + Vite, served at `/player`. One controller WebSocket feeds a small store (channels, data, rundowns);
 all changes go through the REST API. The PVW preview loads the selected item into the renderer's `layer.html`
 (same isolation as on air). See [player.md](player.md).
+
+## Match data tool (`apps/data`)
+
+React + Vite, served at `/data`, touch-first. It only talks to the match API and listens to `match.changed`;
+everything shown (score, clock, log, shootout) comes from the server's `published` data. See [data-tool.md](data-tool.md).
 
 ## Renderer (`apps/renderer`)
 

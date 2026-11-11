@@ -118,4 +118,8 @@ export type ServerMessage =
   | { type: 'graphics.changed' }
   | { type: 'rundown.changed'; rundown: Rundown }
   | { type: 'rundown.removed'; rundownId: string }
-  | { type: 'rundowns.changed'; rundowns: RundownSummary[] };
+  | { type: 'rundowns.changed'; rundowns: RundownSummary[] }
+  /** Full match (setup, events, published data); shape defined by the server's match API */
+  | { type: 'match.changed'; match: Record<string, unknown> & { id: string } }
+  | { type: 'match.removed'; matchId: string }
+  | { type: 'matches.changed'; matches: { id: string; sport: string; name: string; active: boolean; updatedAt: number }[] };

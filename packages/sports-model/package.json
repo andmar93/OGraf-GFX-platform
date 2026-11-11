@@ -1,0 +1,18 @@
+{
+  "name": "@ogp/sports-model",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sport-agnostic, event-sourced match model with one plugin per sport (football first)",
+  "exports": {
+    ".": "./src/index.ts",
+    "./football": "./src/sports/football/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ogp/protocol": "workspace:*"
+  }
+}

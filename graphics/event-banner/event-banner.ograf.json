@@ -1,0 +1,182 @@
+{
+  "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
+  "id": "ogp.event-banner",
+  "version": "1.0.0",
+  "name": "Event banner – Goal, card, sub, VAR",
+  "description": "Lower third for match events. Bound to match.events.last by default: take it after a goal, card, substitution or VAR decision.",
+  "author": {
+    "name": "OGraf GFX Platform"
+  },
+  "main": "graphic.mjs",
+  "supportsRealTime": true,
+  "supportsNonRealTime": false,
+  "stepCount": 1,
+  "v_ogp_defaultLayer": 20,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "label": "Event",
+        "gddType": "select",
+        "enum": [
+          "goal",
+          "own_goal",
+          "penalty_goal",
+          "yellow",
+          "second_yellow",
+          "red",
+          "sub",
+          "var",
+          "text"
+        ],
+        "default": "goal",
+        "gddOptions": {
+          "labels": {
+            "goal": "Goal",
+            "own_goal": "Own goal",
+            "penalty_goal": "Penalty goal",
+            "yellow": "Yellow card",
+            "second_yellow": "Second yellow",
+            "red": "Red card",
+            "sub": "Substitution",
+            "var": "VAR",
+            "text": "Text only"
+          }
+        },
+        "order": 1,
+        "v_ogp_bind": "match.events.last.kind"
+      },
+      "playerName": {
+        "type": "string",
+        "label": "Player",
+        "gddType": "single-line",
+        "default": "Player name",
+        "order": 2,
+        "v_ogp_bind": "match.events.last.playerName"
+      },
+      "playerNumber": {
+        "type": "integer",
+        "label": "Number",
+        "minimum": 0,
+        "hidden": true,
+        "order": 3,
+        "v_ogp_bind": "match.events.last.playerNumber"
+      },
+      "minute": {
+        "type": "string",
+        "label": "Minute",
+        "gddType": "single-line",
+        "default": "",
+        "order": 4,
+        "v_ogp_bind": "match.events.last.minute"
+      },
+      "teamName": {
+        "type": "string",
+        "label": "Team",
+        "gddType": "single-line",
+        "default": "",
+        "hidden": true,
+        "order": 5,
+        "v_ogp_bind": "match.events.last.teamName"
+      },
+      "teamColor": {
+        "type": "string",
+        "label": "Team colour",
+        "gddType": "color-rrggbb",
+        "pattern": "^#[0-9a-f]{6}$",
+        "default": "#d81e3c",
+        "hidden": true,
+        "order": 6,
+        "v_ogp_bind": "match.events.last.teamColor"
+      },
+      "teamLogo": {
+        "type": "string",
+        "label": "Team logo",
+        "gddType": "file-path/image-path",
+        "default": "",
+        "hidden": true,
+        "order": 7,
+        "v_ogp_bind": "match.events.last.teamLogo"
+      },
+      "inName": {
+        "type": "string",
+        "label": "Player on (sub)",
+        "gddType": "single-line",
+        "default": "",
+        "hidden": true,
+        "order": 8,
+        "v_ogp_bind": "match.events.last.inName"
+      },
+      "inNumber": {
+        "type": "integer",
+        "label": "Number on",
+        "minimum": 0,
+        "hidden": true,
+        "order": 9,
+        "v_ogp_bind": "match.events.last.inNumber"
+      },
+      "outName": {
+        "type": "string",
+        "label": "Player off (sub)",
+        "gddType": "single-line",
+        "default": "",
+        "hidden": true,
+        "order": 10,
+        "v_ogp_bind": "match.events.last.outName"
+      },
+      "outNumber": {
+        "type": "integer",
+        "label": "Number off",
+        "minimum": 0,
+        "hidden": true,
+        "order": 11,
+        "v_ogp_bind": "match.events.last.outNumber"
+      },
+      "score": {
+        "type": "string",
+        "label": "Score",
+        "gddType": "single-line",
+        "default": "",
+        "hidden": true,
+        "order": 12,
+        "v_ogp_bind": "match.events.last.score"
+      },
+      "headline": {
+        "type": "string",
+        "label": "Headline override",
+        "gddType": "single-line",
+        "default": "",
+        "description": "Replaces the automatic headline (GOAL, YELLOW CARD, ...)",
+        "hidden": true,
+        "order": 13
+      }
+    }
+  },
+  "actionDurations": [
+    {
+      "type": "playAction",
+      "duration": 800
+    },
+    {
+      "type": "stopAction",
+      "duration": 400
+    },
+    {
+      "type": "updateAction",
+      "duration": 400
+    }
+  ],
+  "renderRequirements": [
+    {
+      "resolution": {
+        "width": {
+          "ideal": 1920
+        },
+        "height": {
+          "ideal": 1080
+        }
+      }
+    }
+  ]
+}

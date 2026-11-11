@@ -1,0 +1,25 @@
+{
+  "name": "@ogp/data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Football match data tool: teams, clock, events – publishes match.* data paths",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "dev:hmr": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ogp/protocol": "workspace:*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "vite": "^7.3.8"
+  }
+}
