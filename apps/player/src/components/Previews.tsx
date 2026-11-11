@@ -40,9 +40,15 @@ export function ProgramPreview({ channel }: { channel: ChannelState | undefined 
         const win = frame.contentWindow as (Window & { ogpRenderer?: RendererStatus; ogpBoot?: { errors: string[] } }) | null;
         st = win?.ogpRenderer;
         const doc = frame.contentDocument;
-        why = !win || !doc
-          ? 'frame has no document'
-          : win.ogpBoot?.errors[0] ?? `page "${doc.title || '(no title)'}" ${doc.readyState}, ${win.location.pathname}${win.location.search}, script not started`;
+        if (!win || !doc) why = 'frame has no document';
+        else if (win.ogpBoot?.errors[0]) why = win.ogpBoot.errors[0];
+        else {
+          // detailed diagnostics: which scripts the page has and whether the renderer script was downloaded
+          const scripts = [...doc.scripts].map((sc) => `${sc.type || 'classic'}:${sc.src ? new URL(sc.src).pathname.split('/').pop() : 'inline'}`);
+          const res = (win.performance.getEntriesByType('resource') as PerformanceResourceTiming[]).find((e) => /\/renderer\/assets\/index-[^/]*\.js/.test(e.name));
+          const fetched = res ? `script downloaded (HTTP ${(res as PerformanceResourceTiming & { responseStatus?: number }).responseStatus ?? '?'}, ${res.transferSize} bytes)` : 'script NOT downloaded';
+          why = `page ${doc.readyState}, boot code ${win.ogpBoot ? 'ran' : 'did NOT run'}, ${fetched}, scripts [${scripts.join(', ')}]`;
+        }
       } catch (err) {
         why = `cannot read the preview frame (${(err as Error).name}) – is the player opened from a different address than the server?`;
       }
