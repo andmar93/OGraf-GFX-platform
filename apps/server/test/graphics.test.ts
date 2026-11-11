@@ -33,7 +33,7 @@ describe('graphics', () => {
   });
 
   it('never lets browsers cache the HTML entry pages (they reference the current build)', async () => {
-    for (const path of ['/render/main', '/render/main?preview=1', '/player/', '/data/', '/dev']) {
+    for (const path of ['/render/main', '/render/main?preview=1', '/player/', '/data/', '/editor/', '/dev']) {
       const res = await fetch(s.baseUrl + path);
       expect([200, 503]).toContain(res.status);
       expect(res.headers.get('cache-control'), path).toBe('no-store');

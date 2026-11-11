@@ -22,6 +22,13 @@
       "when": 1794426281690,
       "tag": "0002_matches",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794430940321,
+      "tag": "0003_editor_projects",
+      "breakpoints": true
     }
   ]
 }

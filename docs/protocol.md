@@ -95,6 +95,16 @@ A match response contains the setup, `events`, `published` (exactly what goes to
 `substitution {outId, inId}`, `var {reason, decision}`, `corner`, `shot {onTarget?}`, `foul`, `offside`,
 `shootout.kick {scored, playerId?}`.
 
+### Editor projects
+| | |
+|---|---|
+| `GET /api/v1/projects` | `{ projects: [{ id, name, graphicId, updatedAt }] }` |
+| `POST /api/v1/projects` | `{ project }` → 201 (a new id is assigned if the given one exists) |
+| `GET/PUT/DELETE /api/v1/projects/{id}` | `PUT { project }` replaces the stored project |
+
+The editor exports packages itself (manifest + module + assets) and publishes them through `POST /api/v1/graphics`.
+Exported manifests carry the project in `v_ogp_editor` so they can be imported again.
+
 ### Assets
 | | |
 |---|---|

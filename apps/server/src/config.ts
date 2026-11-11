@@ -14,6 +14,8 @@ export interface ServerConfig {
   playerDist: string;
   /** Built match data tool (apps/data/dist). */
   dataAppDist: string;
+  /** Built graphics editor (apps/editor/dist). */
+  editorDist: string;
   /** Static files for the /dev test bench. */
   publicDir: string;
   /** Folder with example graphics packages (one sub-folder per package). */
@@ -41,6 +43,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     rendererDist: resolve(env.RENDERER_DIST ?? '../renderer/dist'),
     playerDist: resolve(env.PLAYER_DIST ?? '../player/dist'),
     dataAppDist: resolve(env.DATA_APP_DIST ?? '../data/dist'),
+    editorDist: resolve(env.EDITOR_DIST ?? '../editor/dist'),
     publicDir: resolve(env.PUBLIC_DIR ?? 'public'),
     seedGraphicsDir: env.SEED_GRAPHICS_DIR === '' ? undefined : resolve(env.SEED_GRAPHICS_DIR ?? '../../graphics'),
     seedMode: ['once', 'always', 'never'].includes(seedMode) ? seedMode : 'once',

@@ -96,6 +96,18 @@ all changes go through the REST API. The PVW preview loads the selected item int
 React + Vite, served at `/data`, touch-first. It only talks to the match API and listens to `match.changed`;
 everything shown (score, clock, log, shootout) comes from the server's `published` data. See [data-tool.md](data-tool.md).
 
+## Editor (`apps/editor`, `packages/editor-core`)
+
+`editor-core` holds the project model (layers: text, shape, image, group; data fields), the field → GDD schema
+conversion, the exporter/importer and the **graphic runtime**: plain dependency-free JavaScript (a Web Component in
+Shadow DOM with Web Animations) into which the exporter embeds the project JSON. Exported packages are therefore
+ordinary OGraf graphics that run in any OGraf renderer.
+
+The editor app renders its canvas with that same runtime inside the renderer's `layer.html` frame, driven through a
+vendor method (`v_ogpEdit`) – so the canvas is pixel-identical to the output. Selection, moving, resizing and snapping
+happen in an overlay computed from the model. Projects are stored on the server (`/api/v1/projects`); publishing
+uploads the exported zip to the normal graphics import. See [editor.md](editor.md).
+
 ## Renderer (`apps/renderer`)
 
 - `/render/:channelId` – stage at channel resolution, scaled to the window, transparent background.

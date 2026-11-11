@@ -1,0 +1,15 @@
+{
+  "name": "@ogp/editor-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Graphics editor project model, OGraf exporter and the dependency-free graphic runtime",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ogp/ograf-core": "workspace:*"
+  }
+}

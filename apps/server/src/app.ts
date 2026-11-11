@@ -16,6 +16,7 @@ import { RundownService } from './rundowns/rundown.service.ts';
 import { rundownApi } from './control/rundown-api.ts';
 import { MatchService } from './matches/match.service.ts';
 import { matchApi } from './control/match-api.ts';
+import { projectApi } from './control/project-api.ts';
 import { registerAssets } from './assets/assets.ts';
 import { ografServerApi } from './control/ograf-server-api.ts';
 import { internalApi } from './control/internal-api.ts';
@@ -81,7 +82,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   });
 
   // ---------- APIs ----------
-  const adapters: ControlAdapter[] = [ografServerApi, internalApi, rundownApi, matchApi];
+  const adapters: ControlAdapter[] = [ografServerApi, internalApi, rundownApi, matchApi, projectApi];
   for (const a of adapters) await a.register(app, services);
 
   await registerAssets(app, config.dataDir);
@@ -102,7 +103,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   });
   // Built frontends: routes are always registered and files are looked up per request. In development the
   // watch builds empty and rewrite their dist folders while the server runs, so a check at startup could miss them.
-  for (const dir of [config.rendererDist, config.playerDist, config.dataAppDist]) mkdirSync(dir, { recursive: true });
+  for (const dir of [config.rendererDist, config.playerDist, config.dataAppDist, config.editorDist]) mkdirSync(dir, { recursive: true });
   // HTML entry pages must never be cached: they reference the current build's assets. (sendFile would otherwise
   // inherit the caching options of the first static registration – the immutable package store.)
   const NO_CACHE_FILE = { cacheControl: false, immutable: false, maxAge: 0, lastModified: false, etag: false } as const;
@@ -124,6 +125,10 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   app.get('/data/', (_req, reply) => page(reply, config.dataAppDist, 'match data tool'));
   app.get('/data', (_req, reply) => reply.redirect('/data/'));
 
+  await app.register(fastifyStatic, { root: config.editorDist, prefix: '/editor/', decorateReply: false, index: false, cacheControl: false, setHeaders: noCache });
+  app.get('/editor/', (_req, reply) => page(reply, config.editorDist, 'editor'));
+  app.get('/editor', (_req, reply) => reply.redirect('/editor/'));
+
   if (existsSync(join(config.publicDir, 'dev.html'))) {
     await app.register(fastifyStatic, { root: config.publicDir, prefix: '/public/', decorateReply: false, index: false });
     app.get('/dev', (_req, reply) => reply.header('Cache-Control', 'no-store').sendFile('dev.html', config.publicDir, NO_CACHE_FILE));
@@ -131,6 +136,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   app.addHook('onReady', async () => {
     if (!existsSync(join(config.rendererDist, 'index.html'))) app.log.warn(`renderer build not found in ${config.rendererDist} – run "pnpm build" (or "pnpm dev")`);
     if (!existsSync(join(config.playerDist, 'index.html'))) app.log.warn(`player build not found in ${config.playerDist} – run "pnpm build" (or "pnpm dev")`);
+    if (!existsSync(join(config.editorDist, 'index.html'))) app.log.warn(`editor build not found in ${config.editorDist} – run "pnpm build" (or "pnpm dev")`);
     if (!existsSync(join(config.dataAppDist, 'index.html'))) app.log.warn(`data tool build not found in ${config.dataAppDist} – run "pnpm build" (or "pnpm dev")`);
   });
 

@@ -115,3 +115,13 @@ export const matchEvents = sqliteTable(
   },
   (t) => [index('match_events_match_idx').on(t.matchId, t.seq)],
 );
+
+/** Editor projects (the editable source of graphics made in the editor). */
+export const editorProjects = sqliteTable('editor_projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  graphicId: text('graphic_id').notNull(),
+  doc: text('doc', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
