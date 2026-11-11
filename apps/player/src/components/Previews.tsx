@@ -80,7 +80,7 @@ export function ProgramPreview({ channel }: { channel: ChannelState | undefined 
             ref={frameRef}
             key={`${channel.id}#${reloads}`}
             title="Program preview"
-            src={`/render/${encodeURIComponent(channel.id)}?preview=1`}
+            src={`/render/${encodeURIComponent(channel.id)}?preview=1&pgm=2`}
             style={{ width: W, height: H, transform: `scale(${scale})` }}
           />
         )}

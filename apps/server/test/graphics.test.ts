@@ -32,6 +32,19 @@ describe('graphics', () => {
     expect(file.headers.get('cache-control')).toMatch(/immutable/);
   });
 
+  it('never lets browsers cache the HTML entry pages (they reference the current build)', async () => {
+    for (const path of ['/render/main', '/render/main?preview=1', '/player/', '/data/', '/dev']) {
+      const res = await fetch(s.baseUrl + path);
+      expect([200, 503]).toContain(res.status);
+      expect(res.headers.get('cache-control'), path).toBe('no-store');
+      expect(res.headers.get('etag'), path).toBeNull();
+      expect(res.headers.get('last-modified'), path).toBeNull();
+    }
+    // package files stay immutable
+    const g = (await api<{ graphic: { mainUrl: string } }>(s.baseUrl, 'GET', '/api/v1/graphics/ogp.lineup')).body.graphic;
+    expect((await fetch(s.baseUrl + g.mainUrl)).headers.get('cache-control')).toMatch(/immutable/);
+  });
+
   it('imports a zip with a top-level folder (raw body)', async () => {
     const zip = zipSync({ 'my-graphic/a.ograf.json': manifest('test.a'), 'my-graphic/graphic.mjs': js });
     const r = await upload(s.baseUrl, zip);

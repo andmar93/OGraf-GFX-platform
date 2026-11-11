@@ -103,9 +103,12 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
   // Built frontends: routes are always registered and files are looked up per request. In development the
   // watch builds empty and rewrite their dist folders while the server runs, so a check at startup could miss them.
   for (const dir of [config.rendererDist, config.playerDist, config.dataAppDist]) mkdirSync(dir, { recursive: true });
+  // HTML entry pages must never be cached: they reference the current build's assets. (sendFile would otherwise
+  // inherit the caching options of the first static registration – the immutable package store.)
+  const NO_CACHE_FILE = { cacheControl: false, immutable: false, maxAge: 0, lastModified: false, etag: false } as const;
   const page = (reply: FastifyReply, dir: string, what: string) => {
     reply.header('Cache-Control', 'no-store');
-    if (existsSync(join(dir, 'index.html'))) return reply.sendFile('index.html', dir);
+    if (existsSync(join(dir, 'index.html'))) return reply.sendFile('index.html', dir, NO_CACHE_FILE);
     return reply.status(503).type('text/html').send(buildingPage(what));
   };
   const noCache = (res: FastifyReply) => res.header('Cache-Control', 'no-cache');
@@ -123,7 +126,7 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
 
   if (existsSync(join(config.publicDir, 'dev.html'))) {
     await app.register(fastifyStatic, { root: config.publicDir, prefix: '/public/', decorateReply: false, index: false });
-    app.get('/dev', (_req, reply) => reply.header('Cache-Control', 'no-cache').sendFile('dev.html', config.publicDir));
+    app.get('/dev', (_req, reply) => reply.header('Cache-Control', 'no-store').sendFile('dev.html', config.publicDir, NO_CACHE_FILE));
   }
   app.addHook('onReady', async () => {
     if (!existsSync(join(config.rendererDist, 'index.html'))) app.log.warn(`renderer build not found in ${config.rendererDist} – run "pnpm build" (or "pnpm dev")`);
