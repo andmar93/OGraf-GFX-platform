@@ -226,7 +226,7 @@ export function App() {
         )}
       </main>
       <aside className="right">
-        <OnAirPanel channel={channel} rundowns={s.rundowns} labelOf={labelOf} />
+        <OnAirPanel channel={channel} rundowns={s.rundowns} graphics={s.graphics} labelOf={labelOf} />
         {rundown && selected ? (
           <ItemEditor
             key={selected.id}

@@ -198,3 +198,37 @@ describe('rundowns', () => {
     ws.close();
   });
 });
+
+describe('rundowns – graphic updates', () => {
+  it('reloads a loaded (not on-air) instance when a newer version of the graphic was uploaded', async () => {
+    const { zipSync, strToU8 } = await import('fflate');
+    const s = await createTestServer();
+    try {
+      const manifest = (v: string) => strToU8(JSON.stringify({
+        $schema: 'https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json',
+        id: 'test.versioned', name: 'Versioned', version: v, main: 'graphic.mjs', supportsRealTime: true, supportsNonRealTime: false,
+      }));
+      const upload = (v: string) => fetch(`${s.baseUrl}/api/v1/graphics`, { method: 'POST', headers: { 'content-type': 'application/zip' }, body: Buffer.from(zipSync({ 'v.ograf.json': manifest(v), 'graphic.mjs': strToU8(`export default class extends HTMLElement { v = '${v}' }`) })) });
+      await upload('1');
+      const r = (await api<{ rundown: Rundown }>(s.baseUrl, 'POST', '/api/v1/rundowns', { name: 'v' })).body.rundown;
+      const item = (await api<{ rundown: Rundown }>(s.baseUrl, 'POST', `/api/v1/rundowns/${r.id}/items`, { graphicId: 'test.versioned', layer: 5 })).body.rundown.items[0]!;
+      const ctl = (a: string) => api<B>(s.baseUrl, 'POST', `/api/v1/rundowns/${r.id}/items/${item.id}/${a}`, {});
+      const layer = async () => (await api<{ layer: LayerState }>(s.baseUrl, 'GET', '/api/v1/channels/main/layers/5')).body.layer;
+      await ctl('take');
+      const first = await layer();
+      await upload('2');
+      // on air: untouched
+      await ctl('take');
+      expect((await layer()).graphicInstanceId).toBe(first.graphicInstanceId);
+      // out, then take again: new version is loaded
+      await ctl('out');
+      await ctl('take');
+      const second = await layer();
+      expect(second.graphicInstanceId).not.toBe(first.graphicInstanceId);
+      expect(second.graphic.version).toBe('2');
+      expect(second.status).toBe('playing');
+    } finally {
+      await s.close();
+    }
+  });
+});

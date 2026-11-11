@@ -268,7 +268,13 @@ export class RundownService extends Emitter<{ changed: Rundown; removed: { rundo
     const item = rundown.items.find((i) => i.id === itemId);
     if (!item) throw notFound(`rundown item "${itemId}"`);
     const skip = opts.skipAnimation !== undefined ? { skipAnimation: opts.skipAnimation } : {};
-    const mine = this.layerOf(item);
+    let mine = this.layerOf(item);
+    // A loaded (cued / out) instance of an older version of the graphic is reloaded on cue/take,
+    // so new uploads take effect without clearing the channel. On-air instances are left alone.
+    if (mine && mine.status !== 'playing' && (action === 'take' || action === 'cue')) {
+      const latest = this.graphics.get(item.graphicId);
+      if (latest && latest.packageId !== mine.graphic.packageId) mine = undefined;
+    }
     let outcome: CommandOutcome | undefined;
 
     switch (action) {

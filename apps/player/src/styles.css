@@ -43,6 +43,7 @@ kbd { font: 11px ui-monospace, Menlo, monospace; background: #0d1118; border: 1p
 .muted { color: var(--muted); }
 .hint { color: var(--muted); font-size: 13px; padding: 6px 2px; }
 .err { color: #ff7b72; }
+.warn { color: var(--cued); }
 .grow { flex: 1; }
 
 /* ---------------- layout ---------------- */
