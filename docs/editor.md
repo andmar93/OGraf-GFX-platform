@@ -24,6 +24,13 @@ see is exactly what goes on air.
 | **Image** | Upload (stored on the server, bundled into the package on export) or a URL; contain / cover / stretch. |
 | **Group** | Container; children are positioned relative to it. Select a group and add layers to put them inside. Optional clipping. |
 
+**Copy / cut / paste** – Ctrl/⌘+C, X, V (or the *Copy*, *Cut*, *Paste* buttons under the layer list). Layers go to the
+system clipboard, so you can paste them into another graphic or another browser tab; data fields the layers use are
+added to the target graphic if it does not have them. Pasting into the same graphic offsets the copy by 20 px; with a
+group selected the paste goes into the group, otherwise above the selected layer. Pasting an **image** (e.g. a
+screenshot or a logo copied in the browser) uploads it as an image layer; pasting plain **text** creates a text layer.
+While you type in a field, copy/paste work on the text as usual.
+
 Select on the canvas or in the list; drag to move, handles to resize (Shift keeps the ratio), arrows nudge (Shift ×10).
 Moving snaps to the centre, edges, the safe areas (EBU R95: action safe 93 %, graphics safe 90 %) and other layers –
 hold Alt to move freely. Eye = visible, lock = not selectable on the canvas. ▲▼ change the stacking order,

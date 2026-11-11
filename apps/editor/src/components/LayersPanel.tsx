@@ -4,7 +4,10 @@ import type { EditorApi } from '../App.tsx';
 
 const ICON: Record<LayerType, string> = { text: 'T', shape: '▭', image: '🖼', group: '▤' };
 
-export function LayersPanel(props: { editor: EditorApi; onAdd: (t: LayerType) => void; onDuplicate: () => void; onDelete: () => void; onMove: (dir: 1 | -1) => void }) {
+export function LayersPanel(props: {
+  editor: EditorApi; onAdd: (t: LayerType) => void; onDuplicate: () => void; onDelete: () => void; onMove: (dir: 1 | -1) => void;
+  onCopy: () => void; onCut: () => void; onPaste: () => void;
+}) {
   const { editor } = props;
   const sel = editor.selectedId;
   return (
@@ -23,6 +26,9 @@ export function LayersPanel(props: { editor: EditorApi; onAdd: (t: LayerType) =>
       <div className="tree-tools">
         <button disabled={!sel} onClick={() => props.onMove(1)} title="Bring forward">▲</button>
         <button disabled={!sel} onClick={() => props.onMove(-1)} title="Send backward">▼</button>
+        <button disabled={!sel} onClick={props.onCopy} title="Copy (Ctrl/⌘+C)">Copy</button>
+        <button disabled={!sel} onClick={props.onCut} title="Cut (Ctrl/⌘+X)">Cut</button>
+        <button onClick={props.onPaste} title="Paste (Ctrl/⌘+V) – layers, images or text">Paste</button>
         <button disabled={!sel} onClick={props.onDuplicate} title="Duplicate (Ctrl/⌘+D)">⧉</button>
         <button disabled={!sel} onClick={props.onDelete} title="Delete (Del)">🗑</button>
       </div>

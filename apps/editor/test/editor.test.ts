@@ -52,3 +52,48 @@ describe('fields', () => {
     expect(r.layers[0]!.bindings.fill).toBe('name');
   });
 });
+
+describe('clipboard', async () => {
+  const { serialize, parse, prepareForPaste } = await import('../src/lib/clipboard.ts');
+  const { createProject, createLayer } = await import('@ogp/editor-core');
+
+  it('copies layers with the fields they use and pastes them with new ids', () => {
+    const src = createProject('Source');
+    src.fields.push({ key: 'color', label: 'Colour', type: 'color', default: '#ff0000' });
+    src.layers[0]!.bindings.fill = 'color';
+    const text = serialize(src, [src.layers[0]!.id, src.layers[2]!.id]);
+    const payload = parse(text)!;
+    expect(payload.layers).toHaveLength(2);
+    expect(payload.fields.map((f) => f.key).sort()).toEqual(['color', 'title']);
+
+    // into the same graphic: offset, new ids, no new fields
+    const same = prepareForPaste(payload, src);
+    expect(same.layers[0]!.id).not.toBe(src.layers[0]!.id);
+    expect(same.layers[0]!.x).toBe(src.layers[0]!.x + 20);
+    expect(same.layers[0]!.name).toBe(src.layers[0]!.name);
+    expect(same.newFields).toEqual([]);
+
+    // into another graphic: same position, missing fields are added
+    const other = createProject('Other');
+    other.fields = [];
+    const into = prepareForPaste(payload, other);
+    expect(into.layers[0]!.x).toBe(src.layers[0]!.x);
+    expect(into.newFields.map((f) => f.key).sort()).toEqual(['color', 'title']);
+  });
+
+  it('gives group children new ids too', () => {
+    const p = createProject();
+    const g = createLayer('group') as import('@ogp/editor-core').GroupLayer;
+    g.children.push(createLayer('text'));
+    p.layers.push(g);
+    const r = prepareForPaste(parse(serialize(p, [g.id]))!, p);
+    const pasted = r.layers[0] as import('@ogp/editor-core').GroupLayer;
+    expect(pasted.children[0]!.id).not.toBe(g.children[0]!.id);
+  });
+
+  it('ignores clipboard text that is not ours', () => {
+    expect(parse('hello')).toBeUndefined();
+    expect(parse('{"kind":"other","layers":[]}')).toBeUndefined();
+    expect(parse('{broken')).toBeUndefined();
+  });
+});

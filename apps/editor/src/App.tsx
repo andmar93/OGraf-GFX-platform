@@ -5,6 +5,7 @@ import {
   removeLayer, slugify, updateLayer, type Layer, type LayerType, type Project,
 } from '@ogp/editor-core';
 import { api, ApiError, type ProjectSummary } from './lib/api.ts';
+import { parse as parseClipboard, prepareForPaste, serialize as serializeLayers } from './lib/clipboard.ts';
 import { useHistory } from './lib/history.ts';
 import { toast } from './lib/toast.ts';
 import { Canvas } from './components/Canvas.tsx';
@@ -153,6 +154,116 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
     h.set((p) => ({ ...p, layers: insertLayer(p.layers, c, selected.id) }));
     setSelectedId(c.id);
   };
+  // ---------------- copy / cut / paste
+  const insertPasted = (layers: Layer[], newFields: Project['fields'] = []) => {
+    if (!layers.length) return;
+    h.set((p) => {
+      const sel = selectedId ? findLayer(p.layers, selectedId) : undefined;
+      let next = p.layers;
+      let above = sel && sel.type !== 'group' ? sel.id : null;
+      for (const l of layers) {
+        next = sel?.type === 'group' ? insertLayer(next, l, null, sel.id) : insertLayer(next, l, above);
+        above = sel?.type === 'group' ? null : l.id;
+      }
+      return { ...p, layers: next, fields: [...p.fields, ...newFields] };
+    });
+    setSelectedId(layers[layers.length - 1]!.id);
+    toast('info', `Pasted ${layers.length === 1 ? `"${layers[0]!.name}"` : `${layers.length} layers`}${newFields.length ? ` (+ field${newFields.length > 1 ? 's' : ''} ${newFields.map((f) => f.key).join(', ')})` : ''}`);
+  };
+  const pasteText = (text: string): boolean => {
+    const payload = parseClipboard(text);
+    if (payload) {
+      const r = prepareForPaste(payload, project);
+      insertPasted(r.layers, r.newFields);
+      return true;
+    }
+    const plain = text.trim();
+    if (!plain) return false;
+    const t = createLayer('text');
+    if (t.type === 'text') { t.text = plain.slice(0, 2000); t.name = plain.slice(0, 24); }
+    insertPasted([t]);
+    return true;
+  };
+  const pasteImage = async (file: File) => {
+    try {
+      const url = await api.uploadImage(file, file.name || 'pasted.png');
+      const size = await new Promise<{ w: number; h: number }>((res) => {
+        const img = new Image();
+        img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => res({ w: 400, h: 300 });
+        img.src = url;
+      });
+      const k = Math.min(1, (project.width * 0.6) / size.w, (project.height * 0.6) / size.h);
+      const l = createLayer('image');
+      if (l.type === 'image') {
+        l.src = url;
+        l.name = file.name ? file.name.replace(/\.[a-z0-9]+$/i, '') : 'Pasted image';
+        l.width = Math.round(size.w * k);
+        l.height = Math.round(size.h * k);
+        l.x = Math.round((project.width - l.width) / 2);
+        l.y = Math.round((project.height - l.height) / 2);
+      }
+      insertPasted([l]);
+    } catch (e) {
+      toast('error', `Paste image failed: ${(e as Error).message}`);
+    }
+  };
+  /** In-memory copy, used when the system clipboard is not available (e.g. the Paste button without permission). */
+  const lastCopy = useRef<string | null>(null);
+  const copySelected = (cut = false): string | null => {
+    if (!selected) return null;
+    const text = serializeLayers(project, [selected.id]);
+    lastCopy.current = text;
+    if (cut) {
+      h.set((p) => ({ ...p, layers: removeLayer(p.layers, selected.id) }));
+      setSelectedId(null);
+    }
+    return text;
+  };
+  const copyButton = (cut = false) => {
+    const text = copySelected(cut);
+    if (text) void navigator.clipboard?.writeText(text).catch(() => {});
+    toast('info', cut ? 'Cut' : 'Copied');
+  };
+  const pasteButton = async () => {
+    let text: string | null = null;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      /* no permission: fall back to the last copy in this tab */
+    }
+    if (!(text && parseClipboard(text)) && lastCopy.current) text = lastCopy.current;
+    if (!text || !pasteText(text)) toast('info', 'Nothing to paste');
+  };
+  useEffect(() => {
+    const onCopy = (e: ClipboardEvent) => {
+      if (isTyping(e.target) || window.getSelection()?.toString()) return; // normal text copy
+      const text = copySelected(e.type === 'cut');
+      if (!text) return;
+      e.preventDefault();
+      e.clipboardData?.setData('text/plain', text);
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      if (isTyping(e.target)) return; // normal text paste
+      const dt = e.clipboardData;
+      const file = dt ? [...dt.files].find((f) => f.type.startsWith('image/')) : undefined;
+      if (file) {
+        e.preventDefault();
+        return void pasteImage(file);
+      }
+      const text = dt?.getData('text/plain') || lastCopy.current || '';
+      if (pasteText(text)) e.preventDefault();
+    };
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCopy);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCopy);
+      document.removeEventListener('paste', onPaste);
+    };
+  });
+
   const remove = () => {
     if (!selected) return;
     h.set((p) => ({ ...p, layers: removeLayer(p.layers, selected.id) }));
@@ -243,7 +354,7 @@ function Editor({ initial, onClose, onImport }: { initial: Project; onClose: () 
           <button className={leftTab === 'fields' ? 'on' : ''} onClick={() => setLeftTab('fields')}>Data fields ({project.fields.length})</button>
         </div>
         {leftTab === 'layers'
-          ? <LayersPanel editor={editor} onAdd={addLayer} onDuplicate={duplicate} onDelete={remove} onMove={(dir) => selected && h.set((p) => ({ ...p, layers: moveLayer(p.layers, selected.id, dir) }))} />
+          ? <LayersPanel editor={editor} onAdd={addLayer} onDuplicate={duplicate} onDelete={remove} onCopy={() => copyButton(false)} onCut={() => copyButton(true)} onPaste={() => void pasteButton()} onMove={(dir) => selected && h.set((p) => ({ ...p, layers: moveLayer(p.layers, selected.id, dir) }))} />
           : <FieldsPanel editor={editor} />}
       </aside>
       <Canvas editor={editor} />

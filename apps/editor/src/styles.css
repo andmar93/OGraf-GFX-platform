@@ -65,7 +65,7 @@ code { background: #0d1118; padding: 0 4px; border-radius: 3px; font-size: 12px;
 .tree .bound { color: #79b8ff; font-size: 11px; }
 .tree input { flex: 1; padding: 1px 4px; }
 .tree-tools { display: flex; gap: 4px; }
-.tree-tools button { flex: 1; }
+.tree-tools button { flex: 1; padding: 5px 2px; font-size: 12px; }
 
 .fields-panel { overflow: auto; flex: 1; }
 .field-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: #0f131b; }
