@@ -103,6 +103,7 @@ const conn = new Connection(wsUrl, {
 
 // Heartbeat: lets the server detect a frozen renderer (e.g. a graphic stuck in an endless loop).
 setInterval(() => conn.send({ type: 'renderer.heartbeat' }), 1000);
+document.addEventListener('visibilitychange', () => refreshOverlay());
 
 if (debug || preview) overlay = debug ? new DebugOverlay() : undefined;
 fitStage();

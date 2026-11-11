@@ -14,6 +14,10 @@ The default channel is `main`. The page is 1920×1080 with a fully transparent b
 | `bg=checker` | Checkerboard background, to check transparency in a normal browser |
 | `preview=1` | Preview renderer: renders everything, but does not count as output (used by the player preview) |
 
+**Keep the renderer visible.** Browsers pause animations in background tabs and invisible sources. Our example
+graphics cope with that (they finish instantly), but third-party graphics may then time out
+(`playAction() timed out after 5000 ms`). For testing in a browser, give the renderer its own window instead of a background tab.
+
 Every renderer page recovers by itself: after a reload, a network drop or a server restart it fetches
 the channel state and restores what is on air (without in-animations).
 
@@ -42,7 +46,7 @@ PLAY 1-100 [HTML] "http://192.168.1.10:8080/render/main"
 2. URL: `http://192.168.1.10:8080/render/main`, Width **1920**, Height **1080**.
 3. Leave *Custom CSS* at the default (it keeps the background transparent).
 4. Turn **off** "Shutdown source when not visible" and "Refresh browser when scene becomes active",
-   so the graphics stay alive across scene changes.
+   so the graphics stay alive across scene changes (a hidden source also pauses its animations).
 5. Optionally turn on "Control audio via OBS".
 
 ## Several machines

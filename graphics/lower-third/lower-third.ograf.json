@@ -1,7 +1,7 @@
 {
   "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
   "id": "ogp.lower-third",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Lower third – Name & title",
   "description": "Two-line lower third (name and title) with accent bar. Neutral league-style design, 1920x1080.",
   "author": {

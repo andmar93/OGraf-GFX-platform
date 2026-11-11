@@ -1,7 +1,7 @@
 {
   "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
   "id": "ogp.scorebug",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Scorebug – Football",
   "description": "Top-left scorebug with team codes, colours, score, match clock (computed locally from a server time anchor), period and added time.",
   "author": {

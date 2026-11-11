@@ -251,21 +251,44 @@ export default class Lineup extends HTMLElement {
     this._el.frame.style.opacity = '0';
   }
 
-  _run(el, keyframes, opts, skip = false) {
-    const a = el.animate(keyframes, { ...opts, fill: 'forwards', duration: skip ? 0 : opts.duration, delay: skip ? 0 : (opts.delay ?? 0) });
+  /**
+   * Runs one animation and resolves when it is done.
+   * - fill 'both': delayed parts hold their first keyframe instead of flashing fully visible
+   * - never hangs: browsers pause animations in hidden tabs / invisible OBS sources, so a timer
+   *   (delay + duration) finishes the animation if the timeline did not; hidden pages skip animation
+   * - commit=true writes the end state inline and removes the animation
+   */
+  _run(el, keyframes, opts, skip = false, commit = true) {
+    const instant = skip || document.visibilityState === 'hidden';
+    const duration = instant ? 0 : opts.duration;
+    const delay = instant ? 0 : (opts.delay ?? 0);
+    const a = el.animate(keyframes, { ...opts, duration, delay, fill: commit ? 'both' : 'none' });
+    a.__commit = commit;
     this._anims.add(a);
-    return a.finished.then(
-      () => {
-        try { a.commitStyles(); } catch { /* not rendered */ }
-        a.cancel();
-      },
-      () => {},
-    ).finally(() => this._anims.delete(a));
+    const timer = new Promise((resolve) => setTimeout(resolve, delay + duration + 120));
+    return Promise.race([a.finished, timer])
+      .then(
+        () => {
+          if (a.playState === 'idle') return; // cancelled by a newer action
+          if (a.playState !== 'finished') {
+            try { a.finish(); } catch { /* ignore */ }
+          }
+          if (commit) {
+            try { a.commitStyles(); } catch { /* element not rendered */ }
+          }
+          a.cancel();
+        },
+        () => {},
+      )
+      .finally(() => this._anims.delete(a));
   }
 
+  /** Freezes running animations at their current visual state (so overlapping calls never jump). */
   _cancelAll() {
     for (const a of this._anims) {
-      try { a.commitStyles(); } catch { /* ignore */ }
+      if (a.__commit) {
+        try { a.commitStyles(); } catch { /* ignore */ }
+      }
       a.cancel();
     }
     this._anims.clear();

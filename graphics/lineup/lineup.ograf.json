@@ -1,7 +1,7 @@
 {
   "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
   "id": "ogp.lineup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Lineup – Full frame",
   "description": "Full-frame team lineup. Step 0: starting XI with formation on a pitch. Step 1: substitutes and coach.",
   "author": {

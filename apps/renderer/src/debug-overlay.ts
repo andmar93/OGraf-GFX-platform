@@ -23,6 +23,7 @@ export class DebugOverlay {
       `time offset ${info.offset.toFixed(1)} ms, rtt ${Number.isFinite(info.rtt) ? info.rtt.toFixed(1) : '–'} ms`,
     ];
     if (info.message) lines.push(`! ${info.message}`);
+    if (document.visibilityState === 'hidden') lines.push('! page is hidden – the browser pauses animations (keep the renderer visible)');
     for (const e of [...renderer.layers.values()].sort((a, b) => a.layer - b.layer)) {
       lines.push(`L${e.layer} ${e.instance.graphic.id} ${e.status}${e.currentStep !== null ? ` step ${e.currentStep}` : ''}${e.error ? `\n   ! ${e.error}` : ''}`);
     }

@@ -30,6 +30,9 @@ the test bench (or `POST /api/v1/graphics`). Uploading a new version with the sa
 - **Merge `updateAction` data** into your state: it can be partial (the server sends only changed keys).
 - **Accept overlapping calls.** The examples freeze running animations at their current position
   (`commitStyles()` + `cancel()`) and animate to the new state from there, so "out" during "in" never jumps.
+- **Never wait only for `animation.finished`.** Browsers pause animations in hidden tabs and invisible OBS sources,
+  so the promise may never resolve and the action times out. Race it against a timer and `finish()` the animation
+  (see `_run()` in the examples), and use `fill: 'both'` so delayed parts don't flash before they animate in.
 - **Honour `skipAnimation`.** Recovery after a renderer reload uses `playAction({ goto, skipAnimation: true })`.
 - **Resolve asset URLs** with `new URL(path, import.meta.url)`.
 - **Return `currentStep`** from `playAction` (`undefined` when going to the end).
