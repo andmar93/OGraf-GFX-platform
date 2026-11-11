@@ -228,3 +228,5 @@ textarea.invalid { border-color: var(--onair); }
   .app { grid-template-columns: 220px minmax(460px, 1fr) 380px; }
   .item { grid-template-columns: 12px 22px 70px minmax(0, 1fr) 64px 60px 52px 10px; gap: 8px; }
 }
+
+.pgm-status { font-size: 11px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

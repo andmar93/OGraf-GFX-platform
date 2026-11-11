@@ -9,7 +9,8 @@ const server = process.env.OGP_SERVER ?? 'http://localhost:8080';
 export default defineConfig({
   base: '/player/',
   plugins: [react()],
-  build: { outDir: 'dist', emptyOutDir: true, target: 'chrome120', sourcemap: true },
+  build: { outDir: 'dist', // keep files during watch rebuilds, so pages loading meanwhile never miss an asset
+    emptyOutDir: !process.argv.includes('--watch'), target: 'chrome120', sourcemap: true },
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   server: {
     port: 5173,

@@ -15,14 +15,53 @@ function Scaled16x9({ children }: { children: (scale: number) => React.ReactNode
   return <div className="frame16x9" ref={ref}>{size.width > 0 && children(size.width / W)}</div>;
 }
 
+interface RendererStatus {
+  connected: boolean;
+  layers: number;
+  errors: string[];
+  message?: string;
+}
+
+/** Program preview: a real renderer page in preview mode, with its status read from the embedded page. */
 export function ProgramPreview({ channel }: { channel: ChannelState | undefined }) {
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const [reloads, setReloads] = useState(0);
+  const [status, setStatus] = useState<RendererStatus | null | undefined>(undefined);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      try {
+        const st = (frameRef.current?.contentWindow as (Window & { ogpRenderer?: RendererStatus }) | null)?.ogpRenderer;
+        setStatus(st ? { ...st, errors: [...st.errors] } : null);
+      } catch {
+        setStatus(null);
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const onAir = channel?.layers.filter((l) => l.status === 'playing').length ?? 0;
+  let line: string;
+  let tone = 'muted';
+  if (status === undefined) line = 'loading…';
+  else if (status === null) { line = 'preview renderer not running'; tone = 'err'; }
+  else if (!status.connected) { line = status.message ?? 'preview renderer disconnected'; tone = 'err'; }
+  else if (status.errors.length) { line = status.errors[0]!; tone = 'err'; }
+  else line = `${status.layers} layer${status.layers === 1 ? '' : 's'} loaded · ${onAir} on air`;
+
   return (
     <section className="preview pgm">
-      <div className="preview-label"><span className="tag pgm">PGM</span>{channel?.name ?? '—'}</div>
+      <div className="preview-label">
+        <span className="tag pgm">PGM</span>{channel?.name ?? '—'}
+        <span className="grow" />
+        <span className={`pgm-status ${tone}`} title={line}>{line}</span>
+        <button className="icon" title="Reload the program preview" onClick={() => setReloads((n) => n + 1)}>⟳</button>
+      </div>
       <Scaled16x9>
         {(scale) => channel && (
           <iframe
-            key={channel.id}
+            ref={frameRef}
+            key={`${channel.id}#${reloads}`}
             title="Program preview"
             src={`/render/${encodeURIComponent(channel.id)}?preview=1`}
             style={{ width: W, height: H, transform: `scale(${scale})` }}

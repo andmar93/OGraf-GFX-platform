@@ -15,6 +15,10 @@
   </head>
   <body>
     <div id="stage"></div>
+    <script>
+      // Watchdog: if the renderer did not start (e.g. a script failed to load), reload until it does.
+      setTimeout(function () { if (!window.ogpRenderer) location.reload(); }, 5000);
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

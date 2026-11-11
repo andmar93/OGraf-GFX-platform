@@ -13,6 +13,15 @@ import { DebugOverlay } from './debug-overlay.ts';
 import { createIframeLayerFactory } from './iframe-layer.ts';
 import { TimeSync } from './time-sync.ts';
 
+interface RendererStatus {
+  started: number;
+  channelId: string;
+  connected: boolean;
+  layers: number;
+  errors: string[];
+  message?: string;
+}
+
 const params = new URLSearchParams(location.search);
 const pathMatch = /\/render\/([^/?#]+)/.exec(location.pathname);
 const channelId = decodeURIComponent(pathMatch?.[1] ?? params.get('channel') ?? 'main');
@@ -38,7 +47,16 @@ window.addEventListener('resize', fitStage);
 
 // ---- renderer ----
 let overlay: DebugOverlay | undefined;
-const refreshOverlay = () => overlay?.update({ channelId, connected: conn.connected, preview, offset: time.offset, rtt: time.rtt, message: lastMessage }, renderer);
+/** Status for the watchdog in index.html and for embedding pages (the player's PGM preview reads it). */
+const status: RendererStatus = { started: Date.now(), channelId, connected: false, layers: 0, errors: [] };
+(window as Window & { ogpRenderer?: RendererStatus }).ogpRenderer = status;
+const refreshOverlay = () => {
+  status.connected = conn.connected;
+  status.message = lastMessage;
+  status.layers = renderer.layers.size;
+  status.errors = [...renderer.layers.values()].filter((e) => e.error).map((e) => `L${e.layer}: ${e.error}`);
+  overlay?.update({ channelId, connected: conn.connected, preview, offset: time.offset, rtt: time.rtt, message: lastMessage }, renderer);
+};
 
 const renderer = new ChannelRenderer(
   createIframeLayerFactory(stage),

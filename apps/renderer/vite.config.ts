@@ -6,7 +6,8 @@ export default defineConfig({
   base: '/renderer/',
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    // keep files during watch rebuilds, so pages loading meanwhile never miss an asset
+    emptyOutDir: !process.argv.includes('--watch'),
     // Chromium-based hosts only (CasparCG 2.5 CEF, vMix, OBS browser source, Chrome/Edge).
     target: 'chrome120',
     sourcemap: true,
