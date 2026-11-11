@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import Fastify, { LogController, type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyInstance, type FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
@@ -91,27 +91,31 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
     serve: true,
     setHeaders: (res) => res.header('Access-Control-Allow-Origin', '*'),
   });
-  if (existsSync(config.rendererDist)) {
-    await app.register(fastifyStatic, { root: config.rendererDist, prefix: '/renderer/', decorateReply: false, index: false, cacheControl: false, setHeaders: (res) => res.header('Cache-Control', 'no-cache') });
-    app.get<{ Params: { channelId: string } }>('/render/:channelId', (_req, reply) => {
-      reply.header('Cache-Control', 'no-store');
-      return reply.sendFile('index.html', config.rendererDist);
-    });
-  } else {
-    app.log.warn(`renderer build not found at ${config.rendererDist} – run "pnpm --filter @ogp/renderer build"`);
-  }
+  // Built frontends: routes are always registered and files are looked up per request. In development the
+  // watch builds empty and rewrite their dist folders while the server runs, so a check at startup could miss them.
+  for (const dir of [config.rendererDist, config.playerDist]) mkdirSync(dir, { recursive: true });
+  const page = (reply: FastifyReply, dir: string, what: string) => {
+    reply.header('Cache-Control', 'no-store');
+    if (existsSync(join(dir, 'index.html'))) return reply.sendFile('index.html', dir);
+    return reply.status(503).type('text/html').send(buildingPage(what));
+  };
+  const noCache = (res: FastifyReply) => res.header('Cache-Control', 'no-cache');
+  await app.register(fastifyStatic, { root: config.rendererDist, prefix: '/renderer/', decorateReply: false, index: false, cacheControl: false, setHeaders: noCache });
+  app.get<{ Params: { channelId: string } }>('/render/:channelId', (_req, reply) => page(reply, config.rendererDist, 'renderer'));
+
+  await app.register(fastifyStatic, { root: config.playerDist, prefix: '/player/', decorateReply: false, index: false, cacheControl: false, setHeaders: noCache });
+  app.get('/player/', (_req, reply) => page(reply, config.playerDist, 'player'));
+  app.get('/player', (_req, reply) => reply.redirect('/player/'));
+  app.get('/', (_req, reply) => reply.redirect('/player/'));
+
   if (existsSync(join(config.publicDir, 'dev.html'))) {
     await app.register(fastifyStatic, { root: config.publicDir, prefix: '/public/', decorateReply: false, index: false });
     app.get('/dev', (_req, reply) => reply.header('Cache-Control', 'no-cache').sendFile('dev.html', config.publicDir));
   }
-  if (existsSync(join(config.playerDist, 'index.html'))) {
-    await app.register(fastifyStatic, { root: config.playerDist, prefix: '/player/', decorateReply: false, index: ['index.html'], cacheControl: false, setHeaders: (res) => res.header('Cache-Control', 'no-cache') });
-    app.get('/player', (_req, reply) => reply.redirect('/player/'));
-    app.get('/', (_req, reply) => reply.redirect('/player/'));
-  } else {
-    app.log.warn(`player build not found at ${config.playerDist} – run "pnpm --filter @ogp/player build"`);
-    app.get('/', (_req, reply) => reply.redirect('/dev'));
-  }
+  app.addHook('onReady', async () => {
+    if (!existsSync(join(config.rendererDist, 'index.html'))) app.log.warn(`renderer build not found in ${config.rendererDist} – run "pnpm build" (or "pnpm dev")`);
+    if (!existsSync(join(config.playerDist, 'index.html'))) app.log.warn(`player build not found in ${config.playerDist} – run "pnpm build" (or "pnpm dev")`);
+  });
 
   return {
     app,
@@ -123,4 +127,11 @@ export async function buildApp(config: ServerConfig, opts: { logger?: boolean } 
       closeDb();
     },
   };
+}
+
+/** Shown while a frontend is being (re)built in development; reloads itself. */
+function buildingPage(what: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2"><title>Building…</title>
+<style>html,body{margin:0;height:100%;background:transparent;font:16px system-ui,sans-serif;color:#8b95a7;display:grid;place-items:center}</style></head>
+<body><p>The ${what} is being built – this page reloads automatically.</p></body></html>`;
 }
