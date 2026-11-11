@@ -16,7 +16,17 @@
   <body>
     <div id="stage"></div>
     <script>
-      // Watchdog: if the renderer did not start (e.g. a script failed to load), reload until it does.
+      // Boot diagnostics (read by the player's PGM preview) and watchdog: if the renderer did not start
+      // (e.g. a script failed to load), reload until it does.
+      window.ogpBoot = { errors: [] };
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        var msg = t && t !== window && (t.src || t.href) ? 'failed to load ' + (t.src || t.href) : String(e.message || e.error);
+        window.ogpBoot.errors.push(msg);
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        window.ogpBoot.errors.push('unhandled rejection: ' + String(e.reason && e.reason.message || e.reason));
+      });
       setTimeout(function () { if (!window.ogpRenderer) location.reload(); }, 5000);
     </script>
     <script type="module" src="/src/main.ts"></script>

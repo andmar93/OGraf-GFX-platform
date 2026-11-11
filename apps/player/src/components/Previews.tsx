@@ -16,6 +16,8 @@ function Scaled16x9({ children }: { children: (scale: number) => React.ReactNode
 }
 
 interface RendererStatus {
+  /** set by the player when no renderer is running in the frame: why */
+  notRunning?: string;
   connected: boolean;
   layers: number;
   errors: string[];
@@ -30,12 +32,21 @@ export function ProgramPreview({ channel }: { channel: ChannelState | undefined 
 
   useEffect(() => {
     const t = setInterval(() => {
+      const frame = frameRef.current;
+      if (!frame) return setStatus(undefined);
+      let st: RendererStatus | undefined;
+      let why: string;
       try {
-        const st = (frameRef.current?.contentWindow as (Window & { ogpRenderer?: RendererStatus }) | null)?.ogpRenderer;
-        setStatus(st ? { ...st, errors: [...st.errors] } : null);
-      } catch {
-        setStatus(null);
+        const win = frame.contentWindow as (Window & { ogpRenderer?: RendererStatus; ogpBoot?: { errors: string[] } }) | null;
+        st = win?.ogpRenderer;
+        const doc = frame.contentDocument;
+        why = !win || !doc
+          ? 'frame has no document'
+          : win.ogpBoot?.errors[0] ?? `page "${doc.title || '(no title)'}" ${doc.readyState}, ${win.location.pathname}${win.location.search}, script not started`;
+      } catch (err) {
+        why = `cannot read the preview frame (${(err as Error).name}) – is the player opened from a different address than the server?`;
       }
+      setStatus(st ? { ...st, errors: [...st.errors] } : { connected: false, layers: 0, errors: [], message: undefined, notRunning: why });
     }, 1000);
     return () => clearInterval(t);
   }, []);
@@ -44,7 +55,7 @@ export function ProgramPreview({ channel }: { channel: ChannelState | undefined 
   let line: string;
   let tone = 'muted';
   if (status === undefined) line = 'loading…';
-  else if (status === null) { line = 'preview renderer not running'; tone = 'err'; }
+  else if (status === null || status.notRunning) { line = `preview renderer not running: ${status?.notRunning ?? 'unknown'}`; tone = 'err'; }
   else if (!status.connected) { line = status.message ?? 'preview renderer disconnected'; tone = 'err'; }
   else if (status.errors.length) { line = status.errors[0]!; tone = 'err'; }
   else line = `${status.layers} layer${status.layers === 1 ? '' : 's'} loaded · ${onAir} on air`;
