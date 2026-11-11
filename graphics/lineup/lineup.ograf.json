@@ -1,0 +1,71 @@
+{
+  "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
+  "id": "ogp.lineup",
+  "version": "1.0.0",
+  "name": "Lineup – Full frame",
+  "description": "Full-frame team lineup. Step 0: starting XI with formation on a pitch. Step 1: substitutes and coach.",
+  "author": { "name": "OGraf GFX Platform" },
+  "main": "graphic.mjs",
+  "supportsRealTime": true,
+  "supportsNonRealTime": false,
+  "stepCount": 2,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "teamName": { "type": "string", "label": "Team name", "gddType": "single-line", "default": "Northbridge FC", "order": 1 },
+      "competition": { "type": "string", "label": "Competition / round", "gddType": "single-line", "default": "League · Matchday 12", "hidden": true, "order": 2 },
+      "teamColor": { "type": "string", "label": "Team colour", "gddType": "color-rrggbb", "default": "#d81e3c", "pattern": "^#[0-9a-f]{6}$", "hidden": true, "order": 3 },
+      "logo": { "type": "string", "label": "Logo", "gddType": "file-path/image-path", "default": "assets/crest.svg", "hidden": true, "order": 4 },
+      "formation": { "type": "string", "label": "Formation", "gddType": "single-line", "default": "4-3-3", "pattern": "^[1-9](-[1-9]){1,4}$", "hidden": true, "order": 5 },
+      "coach": { "type": "string", "label": "Coach", "gddType": "single-line", "default": "Anna Lindqvist", "hidden": true, "order": 6 },
+      "starters": {
+        "type": "array",
+        "label": "Starting XI",
+        "description": "Goalkeeper first, then each line of the formation from defence to attack (left to right).",
+        "hidden": true,
+        "order": 7,
+        "maxItems": 11,
+        "items": {
+          "type": "object",
+          "properties": {
+            "number": { "type": "integer", "label": "No.", "minimum": 0 },
+            "name": { "type": "string", "label": "Name" },
+            "captain": { "type": "boolean", "label": "Captain", "default": false }
+          }
+        },
+        "default": [
+          { "number": 1, "name": "Eriksson" },
+          { "number": 2, "name": "Haddad" }, { "number": 4, "name": "Okafor" }, { "number": 5, "name": "Lindgren", "captain": true }, { "number": 3, "name": "Moreau" },
+          { "number": 8, "name": "Santos" }, { "number": 6, "name": "Kowalski" }, { "number": 10, "name": "Nyström" },
+          { "number": 7, "name": "Ibáñez" }, { "number": 9, "name": "Adeyemi" }, { "number": 11, "name": "Berg" }
+        ]
+      },
+      "substitutes": {
+        "type": "array",
+        "label": "Substitutes",
+        "hidden": true,
+        "order": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "number": { "type": "integer", "label": "No.", "minimum": 0 },
+            "name": { "type": "string", "label": "Name" }
+          }
+        },
+        "default": [
+          { "number": 12, "name": "Holm" }, { "number": 14, "name": "Diallo" }, { "number": 15, "name": "Sjöberg" },
+          { "number": 17, "name": "Ricci" }, { "number": 18, "name": "Andersson" }, { "number": 19, "name": "Mensah" },
+          { "number": 20, "name": "Larsen" }, { "number": 22, "name": "Petrov" }, { "number": 23, "name": "Novak" }
+        ]
+      }
+    }
+  },
+  "actionDurations": [
+    { "type": "playAction", "duration": 1400, "steps": [{ "step": 0, "duration": 1400 }, { "step": 1, "duration": 900 }] },
+    { "type": "stopAction", "duration": 600 },
+    { "type": "updateAction", "duration": 0 }
+  ],
+  "renderRequirements": [
+    { "resolution": { "width": { "ideal": 1920 }, "height": { "ideal": 1080 } } }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@ogp/renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Channel renderer page (/render/:channelId) for CasparCG, vMix, OBS and browsers",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ogp/ograf-core": "workspace:*",
+    "@ogp/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^7.3.8"
+  }
+}

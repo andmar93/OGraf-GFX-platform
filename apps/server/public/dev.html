@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OGraf GFX – Phase 1 test bench</title>
+<style>
+  :root { --bg: #0d1117; --panel: #161b22; --line: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --ok: #3fb950; --warn: #d29922; --err: #f85149; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .grow { flex: 1; }
+  .pill { padding: 2px 8px; border-radius: 10px; font-size: 12px; background: var(--line); }
+  .pill.ok { background: #1f3d2a; color: var(--ok); } .pill.err { background: #3d1f1f; color: var(--err); } .pill.warn { background: #3d321f; color: var(--warn); }
+  main { display: grid; grid-template-columns: minmax(520px, 1.25fr) minmax(420px, 1fr); gap: 16px; padding: 16px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  .preview { position: relative; width: 100%; aspect-ratio: 16 / 9; background: repeating-conic-gradient(#2a2f38 0 25%, #20242b 0 50%) 0 0 / 24px 24px; border-radius: 6px; overflow: hidden; }
+  .preview iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  button { background: #21262d; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: #1f6feb; border-color: #1f6feb; }
+  button.take { background: #238636; border-color: #238636; font-weight: 600; }
+  button.out { background: #8b2a26; border-color: #8b2a26; font-weight: 600; }
+  input, select, textarea { background: #0d1117; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
+  textarea { width: 100%; min-height: 120px; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .gfx { border: 1px solid var(--line); border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+  .gfx .title { font-weight: 600; } .gfx .meta { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+  .status-playing { color: var(--ok); font-weight: 600; } .status-loaded { color: var(--warn); } .status-stopped { color: var(--muted); }
+  .error { color: var(--err); font-size: 12px; }
+  .score { font-size: 28px; font-weight: 800; min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+  .team { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .clock { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #log { font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--muted); max-height: 160px; overflow: auto; white-space: pre-wrap; }
+  a { color: #58a6ff; }
+  small { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>OGraf GFX · Phase 1 test bench</h1>
+  <label>Channel <select id="channel"></select></label>
+  <span id="conn" class="pill">connecting…</span>
+  <span id="renderers" class="pill">no renderer</span>
+  <span class="grow"></span>
+  <a id="rendererLink" target="_blank">Open renderer ↗</a>
+  <a href="/ograf/v1/" target="_blank">OGraf API ↗</a>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Preview <small>(renderer with ?preview=1 – does not count as output)</small></h2>
+      <div class="preview"><iframe id="preview" title="preview"></iframe></div>
+    </section>
+    <section>
+      <h2>Layers</h2>
+      <table><thead><tr><th>Layer</th><th>Graphic</th><th>Status</th><th>Step</th><th></th></tr></thead><tbody id="layers"></tbody></table>
+    </section>
+    <section>
+      <h2>Log</h2>
+      <div id="log"></div>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Match data (data hub → bound graphics)</h2>
+      <div class="row"><button id="demoMatch" class="primary">Set up demo match</button><small>writes <code>match.*</code> data paths</small></div>
+      <div class="team"><span id="homeName">Home</span><button data-score="home:-1">−</button><span class="score" id="homeScore">0</span><button data-score="home:1">+</button></div>
+      <div class="team"><span id="awayName">Away</span><button data-score="away:-1">−</button><span class="score" id="awayScore">0</span><button data-score="away:1">+</button></div>
+      <div class="row"><span class="clock" id="clock">00:00</span>
+        <button data-clock="start" class="take">Start</button><button data-clock="stop" class="out">Stop</button>
+        <button data-clock="adjust:-1000">−1s</button><button data-clock="adjust:1000">+1s</button>
+        <button data-clock="set:0">0:00</button><button data-clock="set:2700000">45:00</button><button data-clock="reset">Reset</button>
+      </div>
+      <div class="row">
+        <label>Added time <input id="addedTime" type="number" min="0" value="0" style="width:60px"></label>
+        <label>Period <input id="period" placeholder="HT / FT / ET" style="width:90px"></label>
+        <button id="setMeta">Apply</button>
+        <button id="goalHome">Goal flash home</button><button id="goalAway">Goal flash away</button>
+      </div>
+      <small>Clock: the server publishes one anchor (start time + elapsed + running); the graphic counts locally.</small>
+    </section>
+    <section>
+      <h2>Graphics</h2>
+      <div id="graphics"></div>
+      <div class="row" style="margin-top:12px">
+        <input type="file" id="zip" accept=".zip"><label><input type="checkbox" id="force"> force</label><button id="upload">Upload package</button>
+      </div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (s) => document.querySelector(s);
+const state = { channelId: localStorage.getItem('ogp.dev.channel') || 'main', channels: [], graphics: [], data: {} };
+const log = (msg, err) => {
+  const el = $('#log');
+  el.textContent = `${new Date().toLocaleTimeString()} ${msg}\n` + el.textContent.slice(0, 5000);
+  if (err) console.error(msg);
+};
+
+async function call(method, path, body) {
+  const res = await fetch(path, { method, headers: body !== undefined ? { 'content-type': 'application/json' } : {}, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!res.ok) log(`${method} ${path} → ${res.status} ${json.title ?? ''} ${json.details ? JSON.stringify(json.details) : ''}`, true);
+  else if (json.statusCode && json.statusCode >= 400) log(`${method} ${path} → graphic said ${json.statusCode} ${json.statusMessage ?? ''}`, true);
+  else log(`${method} ${path} → ${res.status}${json.currentStep !== undefined ? ` step ${json.currentStep}` : ''}${json.rendererCount !== undefined ? ` (${json.rendererCount} renderer)` : ''}${json.dataWarnings ? ' ⚠ data warnings: ' + json.dataWarnings.map((w) => w.path + ' ' + w.message).join('; ') : ''}`);
+  return json;
+}
+
+// ---------- example data per graphic (bindings to the demo match) ----------
+const EXAMPLES = {
+  'ogp.scorebug': { layer: 10, data: {
+    homeCode: { $bind: 'match.home.code' }, awayCode: { $bind: 'match.away.code' },
+    homeScore: { $bind: 'match.home.score', default: 0 }, awayScore: { $bind: 'match.away.score', default: 0 },
+    homeColor: { $bind: 'match.home.color' }, awayColor: { $bind: 'match.away.color' },
+    clock: { $bind: 'match.clock' }, addedTime: { $bind: 'match.addedTime', default: 0 }, period: { $bind: 'match.period', default: '' },
+  } },
+  'ogp.lower-third': { layer: 20, data: { name: 'Anna Lindqvist', title: 'Head coach · Northbridge FC' } },
+  'ogp.lineup': { layer: 50, data: { teamName: { $bind: 'match.home.name' }, teamColor: { $bind: 'match.home.color' } } },
+};
+
+function setChannel(id) {
+  state.channelId = id;
+  localStorage.setItem('ogp.dev.channel', id);
+  $('#preview').src = `/render/${encodeURIComponent(id)}?preview=1`;
+  $('#rendererLink').href = `/render/${encodeURIComponent(id)}?debug=1&bg=checker`;
+  renderLayers();
+}
+
+function renderGraphics() {
+  const box = $('#graphics');
+  box.innerHTML = '';
+  for (const g of state.graphics) {
+    const ex = EXAMPLES[g.id] ?? { layer: 30, data: {} };
+    const el = document.createElement('div');
+    el.className = 'gfx';
+    el.innerHTML = `<div class="row"><span class="title"></span><span class="meta"></span></div>
+      <div class="row"><label>Layer <input type="number" class="layer" min="0" style="width:70px"></label>
+        <button class="primary" data-a="load">Cue</button><button class="take" data-a="take">Take</button>
+        <button data-a="next">Next ▸</button><button data-a="prev">◂ Prev</button>
+        <button class="out" data-a="out">Out</button><button data-a="update">Update</button><button data-a="clear">Clear</button></div>
+      <div class="row customs"></div>
+      <textarea spellcheck="false"></textarea>`;
+    el.querySelector('.title').textContent = g.name;
+    el.querySelector('.meta').textContent = `${g.id} · v${g.version ?? '–'} · stepCount ${g.stepCount}`;
+    el.querySelector('.layer').value = ex.layer;
+    el.querySelector('textarea').value = JSON.stringify(ex.data, null, 2);
+    for (const a of g.customActions) {
+      const b = document.createElement('button');
+      b.textContent = `⚡ ${a.name}`;
+      b.onclick = () => {
+        const payload = a.id === 'goal' ? { team: prompt('team: home or away', 'home') || 'home' } : {};
+        call('POST', `/api/v1/channels/${state.channelId}/layers/${el.querySelector('.layer').value}/custom/${encodeURIComponent(a.id)}`, { payload });
+      };
+      el.querySelector('.customs').appendChild(b);
+    }
+    el.querySelectorAll('button[data-a]').forEach((b) => b.onclick = () => {
+      const layer = el.querySelector('.layer').value;
+      let data;
+      try { data = JSON.parse(el.querySelector('textarea').value || '{}'); } catch (e) { log('invalid JSON: ' + e.message, true); return; }
+      const base = `/api/v1/channels/${state.channelId}/layers/${layer}`;
+      const a = b.dataset.a;
+      if (a === 'load') return call('POST', `${base}/load`, { graphicId: g.id, data });
+      if (a === 'take') {
+        const current = currentChannel()?.layers.find((l) => String(l.layer) === String(layer));
+        return current && current.graphic.id === g.id ? call('POST', `${base}/take`, {}) : call('POST', `${base}/take`, { graphicId: g.id, data });
+      }
+      if (a === 'update') return call('POST', `${base}/update`, { data });
+      return call('POST', `${base}/${a}`, {});
+    });
+    box.appendChild(el);
+  }
+}
+
+const currentChannel = () => state.channels.find((c) => c.id === state.channelId);
+
+function renderLayers() {
+  const ch = currentChannel();
+  const tbody = $('#layers');
+  tbody.innerHTML = '';
+  const outputs = (ch?.renderers ?? []).filter((r) => !r.preview);
+  const pill = $('#renderers');
+  pill.textContent = outputs.length ? `${outputs.length} output renderer${outputs.length > 1 ? 's' : ''}` : 'no output renderer';
+  pill.className = 'pill ' + (outputs.length ? (outputs.every((r) => r.responsive) ? 'ok' : 'err') : 'warn');
+  for (const l of ch?.layers ?? []) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${l.layer}</td><td></td><td class="status-${l.status}">${l.status}</td><td>${l.currentStep ?? '–'}</td><td><button>Clear</button></td>`;
+    tr.children[1].textContent = l.graphic.name;
+    if (l.error) {
+      const e = document.createElement('div');
+      e.className = 'error';
+      e.textContent = '⚠ ' + l.error.message;
+      tr.children[1].appendChild(e);
+    }
+    tr.querySelector('button').onclick = () => call('POST', `/api/v1/channels/${state.channelId}/layers/${l.layer}/clear`);
+    tbody.appendChild(tr);
+  }
+}
+
+function renderChannels() {
+  const sel = $('#channel');
+  sel.innerHTML = state.channels.map((c) => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('');
+  if (!state.channels.some((c) => c.id === state.channelId) && state.channels[0]) state.channelId = state.channels[0].id;
+  sel.value = state.channelId;
+}
+
+// ---------- match data ----------
+const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), state.data);
+function renderMatch() {
+  $('#homeName').textContent = get('match.home.name') ?? 'Home';
+  $('#awayName').textContent = get('match.away.name') ?? 'Away';
+  $('#homeScore').textContent = get('match.home.score') ?? 0;
+  $('#awayScore').textContent = get('match.away.score') ?? 0;
+}
+let offset = 0;
+function tickClock() {
+  const c = get('match.clock');
+  let ms = 0;
+  if (c) ms = c.elapsedAtAnchorMs + (c.running ? Date.now() + offset - c.anchorServerMs : 0);
+  const t = Math.floor(Math.max(0, ms) / 1000);
+  $('#clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+  requestAnimationFrame(tickClock);
+}
+$('#demoMatch').onclick = async () => {
+  await call('PUT', '/api/v1/data/match', {
+    home: { name: 'Northbridge FC', code: 'NBR', color: '#d81e3c', score: 0 },
+    away: { name: 'Eastport United', code: 'EPU', color: '#1e6bd8', score: 0 },
+    addedTime: 0, period: '',
+  });
+  await call('POST', '/api/v1/clock/reset', { path: 'match.clock', limitMs: 45 * 60_000, label: '1st half' });
+};
+document.querySelectorAll('[data-score]').forEach((b) => b.onclick = () => {
+  const [team, d] = b.dataset.score.split(':');
+  const v = Math.max(0, (get(`match.${team}.score`) ?? 0) + Number(d));
+  call('PUT', `/api/v1/data/match/${team}/score`, v);
+});
+document.querySelectorAll('[data-clock]').forEach((b) => b.onclick = () => {
+  const [action, n] = b.dataset.clock.split(':');
+  const body = { path: 'match.clock' };
+  if (action === 'set') body.elapsedMs = Number(n);
+  if (action === 'adjust') body.adjustMs = Number(n);
+  call('POST', `/api/v1/clock/${action}`, body);
+});
+$('#setMeta').onclick = () => call('PATCH', '/api/v1/data/match', { addedTime: Number($('#addedTime').value) || 0, period: $('#period').value });
+$('#goalHome').onclick = () => call('POST', `/api/v1/channels/${state.channelId}/layers/10/custom/goal`, { payload: { team: 'home' } });
+$('#goalAway').onclick = () => call('POST', `/api/v1/channels/${state.channelId}/layers/10/custom/goal`, { payload: { team: 'away' } });
+
+$('#upload').onclick = async () => {
+  const f = $('#zip').files[0];
+  if (!f) return;
+  const form = new FormData();
+  form.append('file', f);
+  const res = await fetch(`/api/v1/graphics${$('#force').checked ? '?force=true' : ''}`, { method: 'POST', body: form });
+  const json = await res.json();
+  log(`upload ${f.name} → ${res.status} ${json.title ?? ''}\n${JSON.stringify(json.details ?? json.graphics ?? json, null, 1)}`, !res.ok);
+  loadGraphics();
+};
+$('#channel').onchange = (e) => setChannel(e.target.value);
+
+async function loadGraphics() {
+  state.graphics = (await call('GET', '/api/v1/graphics')).graphics ?? [];
+  renderGraphics();
+}
+
+// ---------- live connection ----------
+function connect() {
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'hello', role: 'controller', data: [''] }));
+    ws.send(JSON.stringify({ type: 'time.ping', t0: Date.now() }));
+    $('#conn').textContent = 'server connected';
+    $('#conn').className = 'pill ok';
+  };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'channel.state') {
+      const i = state.channels.findIndex((c) => c.id === m.channel.id);
+      if (i >= 0) state.channels[i] = m.channel; else { state.channels.push(m.channel); renderChannels(); }
+      if (m.channel.id === state.channelId) renderLayers();
+    } else if (m.type === 'channel.removed') {
+      state.channels = state.channels.filter((c) => c.id !== m.channelId);
+      renderChannels();
+    } else if (m.type === 'data.changed') {
+      const parts = m.path.split('.');
+      let o = state.data;
+      parts.slice(0, -1).forEach((k) => { o[k] = o[k] ?? {}; o = o[k]; });
+      if (m.value === undefined || m.value === null) delete o[parts.at(-1)]; else o[parts.at(-1)] = m.value;
+      renderMatch();
+    } else if (m.type === 'graphics.changed') {
+      loadGraphics();
+    } else if (m.type === 'time.pong') {
+      offset = m.serverTime - (m.t0 + (Date.now() - m.t0) / 2);
+    }
+  };
+  ws.onclose = () => {
+    $('#conn').textContent = 'server disconnected';
+    $('#conn').className = 'pill err';
+    setTimeout(connect, 1000);
+  };
+}
+
+state.data = (await call('GET', '/api/v1/data')).value ?? {};
+state.channels = (await call('GET', '/api/v1/channels')).channels ?? [];
+renderChannels();
+setChannel(state.channelId);
+renderMatch();
+await loadGraphics();
+connect();
+tickClock();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# One command: docker compose up --build
+# Then open http://localhost:8080/dev (test bench) and point CasparCG/vMix/OBS at http://<host>:8080/render/main
+services:
+  ogp:
+    build: .
+    image: ograf-gfx-platform:latest
+    container_name: ograf-gfx-platform
+    ports:
+      - "8080:8080"
+    volumes:
+      - ogp-data:/data
+    environment:
+      FRAME_RATE: "50"
+      LOG_LEVEL: info
+    restart: unless-stopped
+
+volumes:
+  ogp-data:

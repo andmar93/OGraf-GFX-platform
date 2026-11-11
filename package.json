@@ -1,0 +1,28 @@
+{
+  "name": "ograf-gfx-platform",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @ogp/renderer build && concurrently -k -n server,renderer -c blue,magenta \"pnpm --filter @ogp/server dev\" \"pnpm --filter @ogp/renderer dev\"",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @ogp/server start",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck && tsc -p tsconfig.json",
+    "validate:graphics": "tsx tools/validate-graphics.ts graphics",
+    "pack:graphics": "tsx tools/pack-graphic.ts graphics dist-graphics",
+    "sync-schemas": "pnpm --filter @ogp/ograf-core sync-schemas"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "concurrently": "^10.0.7",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0",
+    "fflate": "^0.8.2",
+    "@ogp/ograf-core": "workspace:*"
+  }
+}
