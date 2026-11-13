@@ -13,6 +13,7 @@ The default channel is `main`. The page is 1920×1080 with a fully transparent b
 | `debug=1` | Status overlay (connection, time offset, layers, errors) and mouse cursor. **Not for air.** |
 | `bg=checker` | Checkerboard background, to check transparency in a normal browser |
 | `preview=1` | Preview renderer: renders everything, but does not count as output (used by the player preview) |
+| `keepalive=0` | Turns off the frame pump (see OBS below). On by default; only for troubleshooting. |
 
 **Keep the renderer visible.** Browsers pause animations in background tabs and invisible sources. Our example
 graphics cope with that (they finish instantly), but third-party graphics may then time out
@@ -48,6 +49,14 @@ PLAY 1-100 [HTML] "http://192.168.1.10:8080/render/main"
 4. Turn **off** "Shutdown source when not visible" and "Refresh browser when scene becomes active",
    so the graphics stay alive across scene changes (a hidden source also pauses its animations).
 5. Optionally turn on "Control audio via OBS".
+6. Leave "Use custom frame rate" off (the source then runs at the OBS frame rate).
+
+**Choppy output in OBS (picture updates only every few seconds, fine in a normal browser):** OBS renders the page
+off-screen, and then a new frame can depend on the page's main thread changing something. Animations that run purely
+in the browser's compositor (CSS / Web Animations, which most graphics use) do not count. The renderer therefore runs a
+tiny invisible *frame pump* that touches the page every animation frame. With `?debug=1` the overlay shows the measured
+frame rate (`60 fps · keep-alive on · visible`). If it shows `hidden` or a very low fps, OBS is throttling the source:
+check the settings above and that the source is in the active scene.
 
 ## Several machines
 

@@ -10,6 +10,7 @@ import { isClockValue, localizeClocks } from '@ogp/protocol/clock';
 import { ChannelRenderer } from './channel-renderer.ts';
 import { Connection } from './connection.ts';
 import { DebugOverlay } from './debug-overlay.ts';
+import { startKeepAlive } from './keepalive.ts';
 import { createIframeLayerFactory } from './iframe-layer.ts';
 import { TimeSync } from './time-sync.ts';
 
@@ -23,6 +24,8 @@ interface RendererStatus {
 }
 
 const params = new URLSearchParams(location.search);
+/** Keeps off-screen hosts (OBS) producing frames; see keepalive.ts */
+const frames = startKeepAlive(params.get('keepalive') !== '0');
 const pathMatch = /\/render\/([^/?#]+)/.exec(location.pathname);
 const channelId = decodeURIComponent(pathMatch?.[1] ?? params.get('channel') ?? 'main');
 const preview = params.get('preview') === '1';
@@ -55,7 +58,7 @@ const refreshOverlay = () => {
   status.message = lastMessage;
   status.layers = renderer.layers.size;
   status.errors = [...renderer.layers.values()].filter((e) => e.error).map((e) => `L${e.layer}: ${e.error}`);
-  overlay?.update({ channelId, connected: conn.connected, preview, offset: time.offset, rtt: time.rtt, message: lastMessage }, renderer);
+  overlay?.update({ channelId, connected: conn.connected, preview, offset: time.offset, rtt: time.rtt, message: lastMessage, fps: frames.fps, keepAlive: params.get('keepalive') !== '0' }, renderer);
 };
 
 const renderer = new ChannelRenderer(
@@ -124,5 +127,7 @@ setInterval(() => conn.send({ type: 'renderer.heartbeat' }), 1000);
 document.addEventListener('visibilitychange', () => refreshOverlay());
 
 if (debug || preview) overlay = debug ? new DebugOverlay() : undefined;
+// the overlay shows the measured frame rate: refresh it regularly
+if (debug) setInterval(() => refreshOverlay(), 1000);
 fitStage();
 conn.start();

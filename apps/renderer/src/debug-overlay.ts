@@ -17,10 +17,11 @@ export class DebugOverlay {
     document.body.appendChild(this.el);
   }
 
-  update(info: { channelId: string; connected: boolean; preview: boolean; offset: number; rtt: number; message?: string }, renderer: ChannelRenderer) {
+  update(info: { channelId: string; connected: boolean; preview: boolean; offset: number; rtt: number; message?: string; fps?: number; keepAlive?: boolean }, renderer: ChannelRenderer) {
     const lines = [
       `channel ${info.channelId}${info.preview ? ' (preview)' : ''} — ${info.connected ? 'connected' : 'DISCONNECTED'}`,
       `time offset ${info.offset.toFixed(1)} ms, rtt ${Number.isFinite(info.rtt) ? info.rtt.toFixed(1) : '–'} ms`,
+      `${info.fps ?? 0} fps · keep-alive ${info.keepAlive ? 'on' : 'off'} · ${document.visibilityState}`,
     ];
     if (info.message) lines.push(`! ${info.message}`);
     if (document.visibilityState === 'hidden') lines.push('! page is hidden – the browser pauses animations (keep the renderer visible)');
