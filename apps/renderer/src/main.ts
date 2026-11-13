@@ -12,6 +12,7 @@ import { Connection } from './connection.ts';
 import { DebugOverlay } from './debug-overlay.ts';
 import { startKeepAlive } from './keepalive.ts';
 import { createIframeLayerFactory } from './iframe-layer.ts';
+import { createInlineLayerFactory } from './inline-layer.ts';
 import { TimeSync } from './time-sync.ts';
 
 interface RendererStatus {
@@ -26,6 +27,15 @@ interface RendererStatus {
 const params = new URLSearchParams(location.search);
 /** Keeps off-screen hosts (OBS) producing frames; see keepalive.ts */
 const frames = startKeepAlive(params.get('keepalive') !== '0');
+/**
+ * How graphics are hosted: one iframe per layer (isolated, default in browsers) or directly in this page.
+ * OBS (detected by its `window.obsstudio` API) repaints iframe content only every few seconds, so it gets
+ * inline layers. Override with ?layers=iframe|inline.
+ */
+const isObs = typeof (window as Window & { obsstudio?: unknown }).obsstudio === 'object';
+const layerMode: 'iframe' | 'inline' = params.get('layers') === 'inline' || params.get('layers') === 'iframe'
+  ? (params.get('layers') as 'iframe' | 'inline')
+  : isObs ? 'inline' : 'iframe';
 const pathMatch = /\/render\/([^/?#]+)/.exec(location.pathname);
 const channelId = decodeURIComponent(pathMatch?.[1] ?? params.get('channel') ?? 'main');
 const preview = params.get('preview') === '1';
@@ -58,11 +68,11 @@ const refreshOverlay = () => {
   status.message = lastMessage;
   status.layers = renderer.layers.size;
   status.errors = [...renderer.layers.values()].filter((e) => e.error).map((e) => `L${e.layer}: ${e.error}`);
-  overlay?.update({ channelId, connected: conn.connected, preview, offset: time.offset, rtt: time.rtt, message: lastMessage, fps: frames.fps, keepAlive: params.get('keepalive') !== '0' }, renderer);
+  overlay?.update({ channelId, connected: conn.connected, preview, offset: time.offset, rtt: time.rtt, message: lastMessage, fps: frames.fps, keepAlive: params.get('keepalive') !== '0', layerMode }, renderer);
 };
 
 const renderer = new ChannelRenderer(
-  createIframeLayerFactory(stage),
+  layerMode === 'inline' ? createInlineLayerFactory(stage) : createIframeLayerFactory(stage),
   (data) => localizeClocks(data, time.offset),
   (layer, graphicInstanceId, message) => {
     console.error(`[layer ${layer}] ${message}`);
@@ -129,5 +139,19 @@ document.addEventListener('visibilitychange', () => refreshOverlay());
 if (debug || preview) overlay = debug ? new DebugOverlay() : undefined;
 // the overlay shows the measured frame rate: refresh it regularly
 if (debug) setInterval(() => refreshOverlay(), 1000);
+if (layerMode === 'inline') {
+  // inline graphics share this window: keep the renderer alive on their errors and show them in the overlay
+  window.addEventListener('error', (e) => {
+    if (!(e.target instanceof Element)) {
+      console.error('[graphic]', e.message);
+      lastMessage = `graphic error: ${e.message}`;
+      refreshOverlay();
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason as { message?: string } | undefined;
+    console.error('[graphic]', r?.message ?? e.reason);
+  });
+}
 fitStage();
 conn.start();
